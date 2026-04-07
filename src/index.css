@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sei-50:  #e6f4f1;
+  --color-sei-100: #b3ddd6;
+  --color-sei-400: #1D9E75;
+  --color-sei-600: #0F6E56;
+  --color-sei-800: #085041;
+  --color-sei-900: #04342C;
+
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    font-family: var(--font-sans);
+  }
+
+  :root {
+    --sei-primary: #0F6E56;
+    --sei-primary-light: #1D9E75;
+    --sei-danger: #dc2626;
+    --sei-warning: #d97706;
+    --sei-success: #16a34a;
+    --radius: 0.5rem;
+  }
+}
+
+/* Scrollbar delgado */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+
+/* Transiciones de página */
+.page-enter { animation: fadeSlideIn 0.18s ease-out; }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

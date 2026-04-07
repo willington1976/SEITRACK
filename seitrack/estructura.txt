@@ -1,0 +1,115 @@
+seitrack/
+├── public/
+│   ├── manifest.json
+│   ├── sw.js
+│   └── icons/
+├── src/
+│   ├── main.tsx
+│   ├── App.tsx
+│   ├── vite-env.d.ts
+│   │
+│   ├── core/                        # dominio puro — sin React
+│   │   ├── types/
+│   │   │   ├── auth.ts
+│   │   │   ├── vehiculo.ts
+│   │   │   ├── inspeccion.ts
+│   │   │   ├── mantenimiento.ts
+│   │   │   └── index.ts
+│   │   ├── enums/
+│   │   │   ├── roles.ts
+│   │   │   ├── fases.ts
+│   │   │   ├── estados.ts
+│   │   │   └── marcas.ts
+│   │   └── validators/
+│   │       ├── inspeccion.schema.ts   # zod schemas
+│   │       └── vehiculo.schema.ts
+│   │
+│   ├── db/                          # capa offline — IndexedDB
+│   │   ├── dexie.ts                 # instancia Dexie + tablas
+│   │   ├── sync-queue.ts            # cola de sincronización
+│   │   └── seeds/
+│   │       └── regionales.ts
+│   │
+│   ├── services/                    # llamadas a Supabase
+│   │   ├── supabase.ts              # cliente singleton
+│   │   ├── auth.service.ts
+│   │   ├── vehiculos.service.ts
+│   │   ├── inspecciones.service.ts
+│   │   ├── mantenimiento.service.ts
+│   │   └── estaciones.service.ts
+│   │
+│   ├── stores/                      # Zustand
+│   │   ├── auth.store.ts
+│   │   ├── ui.store.ts
+│   │   └── sync.store.ts
+│   │
+│   ├── hooks/                       # React Query hooks
+│   │   ├── useVehiculos.ts
+│   │   ├── useInspecciones.ts
+│   │   ├── useMantenimiento.ts
+│   │   └── useSync.ts
+│   │
+│   ├── layouts/
+│   │   ├── AppLayout.tsx            # shell con nav
+│   │   ├── AuthLayout.tsx
+│   │   └── components/
+│   │       ├── Navbar.tsx
+│   │       ├── Sidebar.tsx
+│   │       └── SyncBadge.tsx
+│   │
+│   ├── pages/
+│   │   ├── auth/
+│   │   │   └── Login.tsx
+│   │   ├── dashboard/
+│   │   │   ├── DashboardNacional.tsx
+│   │   │   ├── DashboardRegional.tsx
+│   │   │   └── DashboardEstacion.tsx
+│   │   ├── vehiculos/
+│   │   │   ├── VehiculosList.tsx
+│   │   │   ├── VehiculoDetail.tsx
+│   │   │   └── VehiculoForm.tsx
+│   │   ├── inspecciones/
+│   │   │   ├── InspeccionList.tsx
+│   │   │   ├── InspeccionForm.tsx   # F0/F1/F2/F3
+│   │   │   └── InspeccionDetail.tsx
+│   │   ├── mantenimiento/
+│   │   │   ├── OrdenesTrabajoList.tsx
+│   │   │   ├── OrdenTrabajoForm.tsx
+│   │   │   └── DiscrepanciaForm.tsx
+│   │   ├── libro-operacion/
+│   │   │   └── LibroOperacion.tsx
+│   │   └── reportes/
+│   │       └── ReportesAVC.tsx
+│   │
+│   ├── components/                  # UI reutilizable
+│   │   ├── ui/                      # shadcn generados
+│   │   ├── forms/
+│   │   │   ├── ChecklistItem.tsx
+│   │   │   └── FirmaDigital.tsx
+│   │   ├── vehiculo/
+│   │   │   ├── VehiculoCard.tsx
+│   │   │   └── EstadoBadge.tsx
+│   │   └── offline/
+│   │       ├── OfflineBanner.tsx
+│   │       └── SyncIndicator.tsx
+│   │
+│   └── lib/
+│       ├── constants.ts
+│       ├── utils.ts
+│       └── permissions.ts           # RBAC helper
+│
+├── supabase/
+│   ├── migrations/
+│   │   ├── 0001_initial_schema.sql
+│   │   ├── 0002_rls_policies.sql
+│   │   ├── 0003_enums.sql
+│   │   └── 0004_seed_regionales.sql
+│   └── functions/
+│       └── notify-maintenance/
+│           └── index.ts
+│
+├── .env.local.example
+├── package.json
+├── vite.config.ts
+├── tailwind.config.ts
+└── tsconfig.json
