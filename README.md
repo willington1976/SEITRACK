@@ -55,3 +55,5 @@ supabase/migrations/
   0002_rls_policies.sql     ← Row Level Security por rol
   0003_seed_regionales.sql  ← 6 regionales + estaciones iniciales
 ```
+
+<!-- deploy 04/07/2026 13:18:31 -->
