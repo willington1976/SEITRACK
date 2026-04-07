@@ -57,3 +57,5 @@ supabase/migrations/
 ```
 
 <!-- deploy 04/07/2026 13:18:31 -->
+
+<!-- deploy publico 04/07/2026 13:23:26 -->
