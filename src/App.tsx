@@ -24,6 +24,7 @@ const OrdenTrabajoForm    = lazy(() => import('@/pages/mantenimiento/OrdenTrabaj
 const LibroOperacion      = lazy(() => import('@/pages/libro-operacion/LibroOperacion'))
 const ReportesAVC         = lazy(() => import('@/pages/reportes/ReportesAVC'))
 const AdminUsuarios       = lazy(() => import('@/pages/admin/AdminUsuarios'))
+const AdminChecklists     = lazy(() => import('@/pages/admin/AdminChecklists'))
 const RepuestosList       = lazy(() => import('@/pages/repuestos/RepuestosList'))
 const CertificacionesList = lazy(() => import('@/pages/personal/CertificacionesList'))
 
@@ -166,6 +167,12 @@ export default function App() {
           <Route path="admin/usuarios" element={
             <RequireRol roles={[Rol.JefeNacional]}>
               <AdminUsuarios />
+            </RequireRol>
+          } />
+
+          <Route path="admin/checklists" element={
+            <RequireRol roles={[Rol.JefeNacional]}>
+              <AdminChecklists />
             </RequireRol>
           } />
         </Route>

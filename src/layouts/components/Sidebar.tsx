@@ -50,6 +50,8 @@ export default function Sidebar() {
       roles: [Rol.JefeNacional, Rol.JefeRegional, Rol.DSNA],       group: 'reportes' },
     { to: '/admin/usuarios',           label: 'Usuarios',           icon: <Ico d={ICONS.users}/>,
       roles: [Rol.JefeNacional],                                     group: 'admin' },
+    { to: '/admin/checklists',         label: 'Checklists',         icon: <Ico d={ICONS.clip}/>,
+      roles: [Rol.JefeNacional],                                     group: 'admin' },
   ]
 
   const visible = NAV_ITEMS.filter(i =>

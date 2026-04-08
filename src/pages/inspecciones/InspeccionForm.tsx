@@ -8,6 +8,7 @@ import { FirmaDigital } from '@/components/forms/FirmaDigital'
 import { Spinner } from '@/components/ui/Spinner'
 import { Badge } from '@/components/ui/Badge'
 import { getChecklist, getTotalItems, getCriticosConFalla } from '@/lib/checklists'
+import { getChecklistDB } from '@/services/checklists.service'
 import { FaseInspeccion, ResultadoItem, ProgramaMTO } from '@/core/enums'
 import { TURNO_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
@@ -149,10 +150,32 @@ export default function InspeccionForm() {
   const [error, setError] = useState('')
 
   // Checklist dinámico según marca del vehículo
+  const [sistemasDB, setSistemasDB] = useState<any[]>([])
+
+  // Cargar checklist desde BD al cambiar fase o vehículo
+  useEffect(() => {
+    if (!vehiculo) return
+    getChecklistDB(fase, vehiculo.programa_mto as ProgramaMTO).then(items => {
+      setSistemasDB(items)
+    })
+  }, [vehiculo, fase])
+
   const sistemas = useMemo(() => {
     if (!vehiculo) return []
+    // Usar BD si tiene datos, sino fallback local
+    if (sistemasDB.length > 0) {
+      return sistemasDB.map(s => ({
+        sistema: s.sistema,
+        items: s.items.map((item: any) => ({
+          id:          item.id,
+          sistema:     item.sistema,
+          descripcion: item.descripcion,
+          critico:     item.critico,
+        }))
+      }))
+    }
     return getChecklist(fase, vehiculo.programa_mto as ProgramaMTO)
-  }, [vehiculo, fase])
+  }, [vehiculo, fase, sistemasDB])
 
   const totalItems  = getTotalItems(sistemas)
   const completados = Object.keys(resultados).length
