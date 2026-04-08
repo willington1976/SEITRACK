@@ -16,6 +16,7 @@ const DashboardRegional   = lazy(() => import('@/pages/dashboard/DashboardRegion
 const DashboardEstacion   = lazy(() => import('@/pages/dashboard/DashboardEstacion'))
 const VehiculosList       = lazy(() => import('@/pages/vehiculos/VehiculosList'))
 const VehiculoDetail      = lazy(() => import('@/pages/vehiculos/VehiculoDetail'))
+const VehiculoForm        = lazy(() => import('@/pages/vehiculos/VehiculoForm'))
 const InspeccionList      = lazy(() => import('@/pages/inspecciones/InspeccionList'))
 const InspeccionForm      = lazy(() => import('@/pages/inspecciones/InspeccionForm'))
 const OrdenesTrabajoList  = lazy(() => import('@/pages/mantenimiento/OrdenesTrabajoList'))
@@ -135,6 +136,7 @@ export default function App() {
 
           <Route path="vehiculos">
             <Route index element={<VehiculosList />} />
+            <Route path="nuevo" element={<VehiculoForm />} />
             <Route path=":vehiculoId" element={<VehiculoDetail />} />
           </Route>
 

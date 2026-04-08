@@ -78,6 +78,26 @@ export default function VehiculosList() {
 
   return (
     <div className="space-y-4">
+      {/* Header con botón */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-sm font-semibold text-gray-900">Flota MRE</h1>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {vehiculos?.length ?? 0} vehículo{vehiculos?.length !== 1 ? 's' : ''} asignados
+          </p>
+        </div>
+        <Link
+          to="/vehiculos/nuevo"
+          className="px-4 py-2 bg-sei-600 text-white text-xs font-semibold rounded-xl
+                     hover:bg-sei-700 transition-colors flex items-center gap-1.5"
+        >
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
+            <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/>
+          </svg>
+          Nueva MRE
+        </Link>
+      </div>
+
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-2">
         <input
