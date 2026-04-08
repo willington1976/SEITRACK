@@ -12,10 +12,10 @@ interface Props {
 }
 
 const OPCIONES: { valor: ResultadoItem; label: string; color: string; activeColor: string }[] = [
-  { valor: ResultadoItem.OK,        label: 'OK',    color: 'border-gray-200 text-gray-500',   activeColor: 'border-green-500 bg-green-50 text-green-700 font-semibold' },
-  { valor: ResultadoItem.Observacion,label: 'OBS', color: 'border-gray-200 text-gray-500',   activeColor: 'border-amber-500 bg-amber-50 text-amber-700 font-semibold' },
-  { valor: ResultadoItem.Falla,     label: 'FALLA', color: 'border-gray-200 text-gray-500',   activeColor: 'border-red-500 bg-red-50 text-red-700 font-semibold' },
-  { valor: ResultadoItem.NoAplica,  label: 'N/A',   color: 'border-gray-200 text-gray-500',   activeColor: 'border-gray-400 bg-gray-100 text-gray-600 font-semibold' },
+  { valor: ResultadoItem.OK,        label: 'OK',    color: 'border-white/5 text-slate-500',   activeColor: 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.2)]' },
+  { valor: ResultadoItem.Observacion,label: 'OBS', color: 'border-white/5 text-slate-500',   activeColor: 'border-amber-500/50 bg-amber-500/20 text-amber-400 font-bold shadow-[0_0_10px_rgba(245,158,11,0.2)]' },
+  { valor: ResultadoItem.Falla,     label: 'FALLA', color: 'border-white/5 text-slate-500',   activeColor: 'border-red-500/50 bg-red-500/20 text-red-400 font-bold shadow-[0_0_10px_rgba(239,68,68,0.2)]' },
+  { valor: ResultadoItem.NoAplica,  label: 'N/A',   color: 'border-white/5 text-slate-500',   activeColor: 'border-white/20 bg-white/10 text-slate-200 font-bold' },
 ]
 
 export const ChecklistItemRow = memo(function ChecklistItemRow({
@@ -26,31 +26,40 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
 
   return (
     <div className={cn(
-      'rounded-lg border px-3 py-2.5 transition-colors',
-      isFalla       ? 'border-red-200 bg-red-50/50' :
-      isObservacion ? 'border-amber-200 bg-amber-50/30' :
-      resultado === ResultadoItem.OK ? 'border-green-100 bg-green-50/20' :
-      'border-gray-100 bg-white'
+      'rounded-xl border px-4 py-3 pb-4 transition-all duration-300',
+      isFalla       ? 'border-red-500/30 bg-red-500/5 shadow-[inset_0_0_20px_rgba(239,68,68,0.05)]' :
+      isObservacion ? 'border-amber-500/30 bg-amber-500/5 shadow-[inset_0_0_20px_rgba(245,158,11,0.05)]' :
+      resultado === ResultadoItem.OK ? 'border-emerald-500/20 bg-emerald-500/5' :
+      'border-white/5 bg-slate-900/40 hover:bg-slate-900/60'
     )}>
-      <div className="flex items-center gap-3">
-        {/* Indicador crítico */}
-        {item.critico && (
-          <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" title="Ítem crítico" />
-        )}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex items-center gap-3 flex-1">
+          {/* Indicador crítico */}
+          {item.critico ? (
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] shrink-0 animate-pulse" title="Ítem crítico" />
+          ) : (
+            <div className="w-1.5 h-1.5 rounded-full bg-slate-700 shrink-0" />
+          )}
 
-        {/* Descripción */}
-        <p className="flex-1 text-sm text-gray-800 leading-snug">{item.descripcion}</p>
+          {/* Descripción Técnica */}
+          <p className={cn(
+            "text-xs leading-relaxed tracking-tight",
+            resultado ? "text-slate-200" : "text-slate-400"
+          )}>
+            {item.descripcion.toUpperCase()}
+          </p>
+        </div>
 
-        {/* Botones resultado */}
-        <div className="flex gap-1 shrink-0">
+        {/* Botones de Comando */}
+        <div className="flex gap-1.5 self-end sm:self-center">
           {OPCIONES.map(op => (
             <button
               key={op.valor}
               type="button"
               onClick={() => onChange(item.id, op.valor)}
               className={cn(
-                'text-[11px] px-2 py-1 rounded-md border transition-all',
-                resultado === op.valor ? op.activeColor : op.color + ' hover:bg-gray-50'
+                'text-[9px] font-bold px-3 py-1.5 rounded-lg border transition-all uppercase tracking-tighter',
+                resultado === op.valor ? op.activeColor : op.color + ' hover:bg-white/5 hover:text-slate-300'
               )}
             >
               {op.label}
@@ -59,17 +68,22 @@ export const ChecklistItemRow = memo(function ChecklistItemRow({
         </div>
       </div>
 
-      {/* Campo observación — aparece cuando corresponde */}
+      {/* Campo observación integrada */}
       {(isFalla || isObservacion) && (
-        <textarea
-          placeholder={isFalla
-            ? 'Descripción de la falla (obligatorio)...'
-            : 'Observación (opcional)...'}
-          value={observacion}
-          onChange={e => onObservacion(item.id, e.target.value)}
-          rows={2}
-          className="mt-2 w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none bg-white"
-        />
+        <div className="mt-4 relative animate-in fade-in slide-in-from-top-2 duration-300">
+          <textarea
+            placeholder={isFalla
+              ? 'DESCRIBA LA FALLA TÉCNICA (OBLIGATORIO)...'
+              : 'OBSERVACIONES ADICIONALES (OPCIONAL)...'}
+            value={observacion}
+            onChange={e => onObservacion(item.id, e.target.value)}
+            rows={2}
+            className={cn(
+               "w-full text-[11px] bg-slate-950 border rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 transition-all resize-none font-mono uppercase",
+               isFalla ? "border-red-500/30 focus:ring-red-500/40 text-red-200" : "border-amber-500/30 focus:ring-amber-500/40 text-amber-200"
+            )}
+          />
+        </div>
       )}
     </div>
   )

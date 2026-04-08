@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
 import { useAuthStore } from '@/stores/auth.store'
-import { Card, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { formatDate } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 import { generarPDFCertificaciones } from '@/lib/pdf'
 import type { CertPersonal } from '@/lib/pdf'
 import { Rol } from '@/core/enums'
@@ -57,17 +56,16 @@ function useCertTodas() {
   })
 }
 
-function diasColor(dias: number) {
-  if (dias <= 0)  return 'text-red-600 font-bold'
-  if (dias <= 30) return 'text-red-500 font-semibold'
-  if (dias <= 60) return 'text-amber-600'
-  return 'text-green-600'
+const diasColorCfg = {
+  vencido: 'bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.2)]',
+  critico: 'bg-amber-500/10 text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.2)]',
+  nominal: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
 }
 
-function diasBadge(dias: number): 'danger'|'warning'|'success' {
-  if (dias <= 30) return 'danger'
-  if (dias <= 60) return 'warning'
-  return 'success'
+function diasBadge(dias: number) {
+  if (dias <= 0)  return { label: 'LICENSE EXPIRED', color: diasColorCfg.vencido, bar: 'bg-red-600' }
+  if (dias <= 30) return { label: `${dias}D REMAINING`, color: diasColorCfg.critico, bar: 'bg-amber-600' }
+  return { label: `${dias}D NOMINAL`, color: diasColorCfg.nominal, bar: 'bg-emerald-600' }
 }
 
 export default function CertificacionesList() {
@@ -101,7 +99,6 @@ export default function CertificacionesList() {
 
   function handlePDF() {
     if (!todas || !usuario) return
-    // Agrupar por persona para el PDF
     const porPersona = new Map<string, CertPersonal>()
     for (const c of todas) {
       const u = c.usuario as any
@@ -133,139 +130,159 @@ export default function CertificacionesList() {
   const criticas  = porVencer?.filter(c => c.dias_restantes > 0 && c.dias_restantes <= 30).length ?? 0
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+    <div className="space-y-6 page-enter">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-sm font-semibold text-gray-900">Certificaciones TME</h1>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Cap. VII · Manual GSAN-4.1-05-01
-            {vencidas > 0 && <span className="text-red-600 ml-1">· {vencidas} vencidas</span>}
-            {criticas > 0 && <span className="text-amber-600 ml-1">· {criticas} por vencer</span>}
+          <div className="flex items-center gap-2 mb-1">
+             <div className="w-1 h-3 bg-amber-600 rounded-full" />
+             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic leading-none">Personnel Compliance Logs</p>
+          </div>
+          <h1 className="text-2xl font-bold text-white tracking-tight uppercase">Certificaciones TME</h1>
+          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-[.2em] mt-1 space-x-3">
+             <span>REF: MANUAL GSAN-4.1-05-01</span>
+             {vencidas > 0 && <span className="text-red-500 font-bold underline decoration-red-500/20 decoration-2 underline-offset-4 tracking-widest">[{vencidas} VENCIDAS]</span>}
           </p>
         </div>
+        
         <div className="flex gap-2">
           {esNacional && (
             <button onClick={handlePDF}
-              className="px-4 py-2 text-xs font-semibold bg-sei-600 text-white rounded-xl hover:bg-sei-700 transition-colors">
+              className="px-6 py-3 bg-slate-900 border border-white/5 text-slate-400 text-[11px] font-bold rounded-2xl hover:text-white hover:bg-white/5 transition-all uppercase tracking-widest">
               Exportar PDF
             </button>
           )}
           {esNacional && (
             <button onClick={() => setMostrarForm(v => !v)}
-              className="px-4 py-2 text-xs font-semibold border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50">
-              + Nueva certificación
+              className="px-6 py-3 bg-blue-600 text-white text-[11px] font-bold rounded-2xl hover:bg-blue-500 transition-all uppercase tracking-widest shadow-xl shadow-blue-600/20 border border-white/10">
+              New License +
             </button>
           )}
         </div>
       </div>
 
-      {/* Resumen alertas */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Resumen Alertas Cockpit */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { l: 'Vencidas',       v: vencidas, c: 'text-red-600',   bg: 'bg-red-50' },
-          { l: 'Por vencer 30d', v: criticas, c: 'text-amber-600', bg: 'bg-amber-50' },
-          { l: 'Alertas 60d',    v: porVencer?.length ?? 0, c: 'text-gray-700', bg: 'bg-gray-50' },
+          { l: 'TOTAL EXPIRED', v: vencidas, c: 'text-red-500', bar: 'bg-red-600', glow: 'shadow-[0_0_15px_rgba(239,68,68,0.15)]' },
+          { l: 'WARNING 30D',   v: criticas, c: 'text-amber-500', bar: 'bg-amber-600', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.15)]' },
+          { l: 'SYSTEM ALERTS', v: porVencer?.length ?? 0, c: 'text-slate-400', bar: 'bg-slate-700', glow: '' },
         ].map(m => (
-          <div key={m.l} className={`${m.bg} rounded-xl p-4`}>
-            <p className={`text-2xl font-semibold ${m.c}`}>{isLoading ? '—' : m.v}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{m.l}</p>
+          <div key={m.l} className={cn("glass-panel rounded-2xl p-6 relative overflow-hidden", m.glow)}>
+             <div className={cn("absolute left-0 top-0 bottom-0 w-1", m.bar)} />
+             <p className={cn("text-3xl font-mono font-bold leading-none", m.c)}>{isLoading ? '—' : m.v}</p>
+             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">{m.l}</p>
           </div>
         ))}
       </div>
 
-      {/* Formulario nueva certificación */}
+      {/* Formulario Certificación Aero */}
       {mostrarForm && (
-        <Card>
-          <CardHeader title="Nueva certificación TME"/>
-          <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="glass-panel rounded-2xl p-8 border-blue-500/20 space-y-6 animate-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between border-b border-white/5 pb-4">
+             <div>
+                <h2 className="text-lg font-bold text-white uppercase tracking-tight">Registro de Nueva Licencia</h2>
+                <p className="text-[9px] text-slate-500 font-mono uppercase tracking-[.2em]">Compliance Database Entry</p>
+             </div>
+             <button onClick={() => setMostrarForm(false)} className="text-slate-500 hover:text-white transition-all text-xs font-bold uppercase tracking-widest">Abortar [X]</button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             {[
-              { k: 'numero_certificado', l: 'N° Certificado *', type: 'text', placeholder: 'TME-2024-001' },
-              { k: 'fecha_emision',      l: 'Fecha de emisión *', type: 'date', placeholder: '' },
-              { k: 'fecha_vencimiento',  l: 'Fecha de vencimiento *', type: 'date', placeholder: '' },
-              { k: 'observaciones',      l: 'Observaciones', type: 'text', placeholder: 'Opcional...' },
+              { k: 'numero_certificado', l: 'Número de Licencia Certificada', type: 'text', placeholder: 'TME-XXXX-XXX' },
+              { k: 'fecha_emision',      l: 'Fecha de Emisión de UAEAC', type: 'date', placeholder: '' },
+              { k: 'fecha_vencimiento',  l: 'Fecha de Vencimiento Legal', type: 'date', placeholder: '' },
+              { k: 'observaciones',      l: 'Comentarios de Discrepancia / Validez', type: 'text', placeholder: 'REGISTRE NOVEDADES...' },
             ].map(f => (
-              <div key={f.k}>
-                <label className="block text-xs text-gray-500 mb-1">{f.l}</label>
+              <div key={f.k} className="space-y-1.5">
+                <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">{f.l}</label>
                 <input type={f.type} placeholder={f.placeholder}
                   value={(form as any)[f.k]}
                   onChange={e => setForm(p => ({ ...p, [f.k]: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sei-400"/>
+                  className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3 text-sm text-blue-400 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/30 uppercase"/>
               </div>
             ))}
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Categoría TME</label>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoría Técnica TME</label>
               <select value={form.categoria}
                 onChange={e => setForm(p => ({ ...p, categoria: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sei-400">
-                {['A','B','C','D'].map(c => <option key={c} value={c}>Categoría {c}</option>)}
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3 text-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30">
+                {['A','B','C','D'].map(c => <option key={c} value={c} className="bg-slate-900">CATEGORÍA {c}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Programa MTO</label>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Programa Mantenimiento / Flota</label>
               <select value={form.programa_mto}
                 onChange={e => setForm(p => ({ ...p, programa_mto: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-sei-400">
-                <option value="PM_SERIE_T">Oshkosh Serie T</option>
-                <option value="PM_S1500">Oshkosh Striker 1500</option>
-                <option value="PM_P4X4">Rosenbauer Panther 4×4</option>
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3 text-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30">
+                <option value="PM_SERIE_T" className="bg-slate-900">OSHKOSH SERIE T</option>
+                <option value="PM_S1500" className="bg-slate-900">OSHKOSH STRIKER 1500</option>
+                <option value="PM_P4X4" className="bg-slate-900">ROSENBAUER PANTHER 4×4</option>
               </select>
             </div>
           </div>
-          <div className="flex gap-2 mt-4">
-            <button onClick={() => setMostrarForm(false)}
-              className="flex-1 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">
-              Cancelar
-            </button>
-            <button onClick={() => crearCert()} disabled={creando}
-              className="flex-1 py-2 bg-sei-600 text-white rounded-xl text-sm font-semibold hover:bg-sei-700 disabled:opacity-50">
-              {creando ? 'Guardando...' : 'Crear certificación'}
-            </button>
+          
+          <div className="pt-4">
+             <button onClick={() => crearCert()} disabled={creando}
+               className="w-full py-4 bg-blue-600 text-white rounded-2xl text-[11px] font-bold hover:bg-blue-500 disabled:opacity-50 transition-all uppercase tracking-widest shadow-xl shadow-blue-600/20 border border-white/10">
+               {creando ? 'SYNCHRONIZING...' : 'AUTORIZAR Y GUARDAR REGISTRO'}
+             </button>
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* Lista certificaciones por vencer */}
-      <Card padding={false}>
-        <div className="px-5 pt-4 pb-3 border-b border-gray-100">
-          <p className="text-sm font-semibold text-gray-900">
-            Certificaciones próximas a vencer o vencidas
-          </p>
-          <p className="text-xs text-gray-400">{porVencer?.length ?? 0} alertas</p>
+      {/* Lista de Discrepancias / Certificaciones por vencer Aero */}
+      <div className="glass-panel border-white/5 rounded-2xl overflow-hidden">
+        <div className="px-6 py-5 border-b border-white/5 bg-white/5">
+          <h2 className="text-sm font-bold text-white uppercase tracking-tight">Registro de Alertas de Vigencia</h2>
+          <p className="text-[9px] text-slate-500 font-mono uppercase tracking-[.25em] mt-1 italic">Vencimientos Próximos o Activos</p>
         </div>
         {isLoading ? (
-          <div className="flex justify-center py-8"><Spinner /></div>
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
+             <Spinner />
+             <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Escaneando Personal...</p>
+          </div>
         ) : !porVencer?.length ? (
-          <p className="text-sm text-gray-400 text-center py-8">
-            Sin certificaciones próximas a vencer
-          </p>
+          <div className="py-16 text-center">
+             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[.25em]">Personal con Licencia Nominal</p>
+          </div>
         ) : (
-          <div className="divide-y divide-gray-50">
-            {porVencer.map(c => (
-              <div key={c.id}
-                className={`flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/60 ${
-                  c.dias_restantes <= 0 ? 'bg-red-50/30' : ''
-                }`}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{c.nombre_completo}</p>
-                  <p className="text-xs text-gray-400">
-                    {c.codigo_iata} · {c.estacion_nombre} ·{' '}
-                    <span className="font-mono">{c.numero_certificado}</span>
-                  </p>
+          <div className="divide-y divide-white/5">
+            {porVencer.map(c => {
+              const db = diasBadge(c.dias_restantes)
+              return (
+                <div key={c.id}
+                  className={cn(
+                    "flex flex-col sm:flex-row sm:items-center gap-4 px-6 py-4 transition-all hover:bg-white/5 relative overflow-hidden",
+                    c.dias_restantes <= 0 ? 'bg-red-500/5' : ''
+                  )}>
+                  <div className={cn("absolute left-0 top-0 bottom-0 w-1", db.bar)} />
+                  
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-sm font-bold text-slate-200 uppercase tracking-tight truncate">{c.nombre_completo}</p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 font-mono uppercase">
+                       <span className="text-blue-500 font-bold">{c.codigo_iata}</span>
+                       <span className="w-1 h-1 rounded-full bg-slate-700" />
+                       <span>{c.estacion_nombre}</span>
+                       <span className="w-1 h-1 rounded-full bg-slate-700" />
+                       <span className="text-slate-400">CERT: {c.numero_certificado}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between sm:justify-end gap-6 shrink-0">
+                    <div className="text-right space-y-1">
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">CAT {c.categoria} · {c.programa_mto}</p>
+                       <p className="text-[10px] text-slate-600 font-mono">EXPIRY: {formatDate(c.fecha_vencimiento)}</p>
+                    </div>
+                    <Badge className={cn("px-3 py-1.5 font-bold text-[9px] border uppercase tracking-widest whitespace-nowrap", db.color)}>
+                       {db.label}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xs text-gray-500">Cat. {c.categoria} · {c.programa_mto}</p>
-                  <p className="text-xs text-gray-400">Vence: {formatDate(c.fecha_vencimiento)}</p>
-                </div>
-                <div className="shrink-0 text-center">
-                  <Badge variant={diasBadge(c.dias_restantes)}>
-                    {c.dias_restantes <= 0 ? 'VENCIDO' : `${c.dias_restantes}d`}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
-      </Card>
+      </div>
     </div>
   )
 }

@@ -1,61 +1,84 @@
-# SEITrack — Sistema de Gestión Operativa SEI
+\# SEITrack — Sistema de Gestión Operativa SEI
 
-PWA para la gestión integral de vehículos MRE (Máquinas para Respuesta a Emergencias)
-del Servicio de Extinción de Incendios — UAEAC — Aeropuertos de Colombia.
 
-## Stack
-- **Frontend**: React 19 + Vite 6 + TypeScript 5 + Tailwind CSS v4
-- **Estado**: Zustand 5 + React Query 5
-- **Offline**: Dexie.js (IndexedDB) + Workbox Service Worker
-- **Backend**: Supabase (PostgreSQL 16 + Auth + Storage + Realtime)
-- **Deploy**: Vercel (PWA) + Supabase Cloud
 
-## Estructura de roles
+PWA para la gestión integral de vehículos MRE (Máquinas para Respuesta a Emergencias) del Servicio de Extinción de Incendios — UAEAC.
+
+
+
+\## 🛠 Tech Stack
+
+\- \*\*Frontend\*\*: React 19 + Vite 6 + TypeScript 5 + Tailwind CSS v4.
+
+\- \*\*Estado/Caché\*\*: Zustand 5 + React Query 5.
+
+\- \*\*Offline-First\*\*: Dexie.js (IndexedDB) + Workbox Service Worker.
+
+\- \*\*Backend\*\*: Supabase (Postgres 16 + Auth + RLS + Realtime).
+
+\- \*\*Normativa\*\*: Manual GSAN-4.1-05-01 (Fases F0, F1, F2, F3).
+
+
+
+\## 🤖 AI Interaction Rules (STRICT TOKEN EFFICIENCY)
+
+Para minimizar el consumo de créditos y evitar escaneos innecesarios, cualquier IA debe cumplir estas directivas:
+
+
+
+1\. \*\*Zero Courtesy\*\*: Prohibido usar saludos, introducciones o cierres. Respuestas 100% técnicas y directas.
+
+2\. \*\*Source of Truth (Types)\*\*: Antes de proponer cambios de lógica, consulta obligatoriamente las definiciones en `src/core/types`.
+
+3\. \*\*Context Scope\*\*:
+
+&#x20;  - \*\*UI\*\*: Solo archivos en `src/components` o `src/screens`.
+
+&#x20;  - \*\*Lógica/Estado\*\*: Solo `src/store` o `src/hooks`.
+
+&#x20;  - \*\*Base de Datos\*\*: Solo archivos en `supabase/migrations`.
+
+4\. \*\*No Full Scan\*\*: No realices búsquedas globales. Si el archivo no está en las rutas mencionadas, solicita la ruta específica.
+
+5\. \*\*Anti-Sycophancy\*\*: Corrige errores técnicos o de normativa (GSAN) de forma directa sin preámbulos.
+
+
+
+\## 📂 Estructura de Roles y Seguridad
+
 | Rol | Alcance |
+
 |-----|---------|
-| `jefe_nacional` | Todo el país — 6 regionales, 36 estaciones |
-| `jefe_regional` | Su regional |
-| `jefe_estacion` | Su estación |
-| `bombero` | Su estación — operación diaria |
-| `odma` | Inspecciones F1/F2/F3 asignadas |
-| `dsna` | Solo lectura — reportes |
 
-## Fases de inspección (Manual GSAN-4.1-05-01)
-| Fase | Responsable | Frecuencia |
-|------|-------------|------------|
-| Cambio de turno | Bombero Maquinista | Cada turno |
-| F0 | Bombero Maquinista | Diaria |
-| F1 | ODMA | Según programa |
-| F2 | ODMA | Según programa |
-| F3 | ODMA | Según programa |
+| `jefe\_nacional` | Nacional (6 regionales, 36 estaciones). |
 
-## Arranque rápido
+| `jefe\_regional` | Regional específica. |
+
+| `jefe\_estacion` | Estación asignada. |
+
+| `bombero` | Operación diaria y cambio de turno. |
+
+| `odma` | Inspecciones técnicas F1/F2/F3. |
+
+
+
+\## 🚀 Desarrollo
 
 ```bash
-# 1. Clonar y dependencias
-git clone https://github.com/tu-org/seitrack
-cd seitrack
+
+\# 1. Instalar dependencias
+
 npm install
 
-# 2. Variables de entorno
-cp .env.local.example .env.local
-# Editar con tus credenciales de Supabase
 
-# 3. Migraciones de base de datos
+
+\# 2. Base de datos
+
 npx supabase db push
 
-# 4. Desarrollo
+
+
+\# 3. Ejecutar
+
 npm run dev
-```
 
-## Migraciones SQL
-```
-supabase/migrations/
-  0001_initial_schema.sql   ← tablas, enums, triggers
-  0002_rls_policies.sql     ← Row Level Security por rol
-  0003_seed_regionales.sql  ← 6 regionales + estaciones iniciales
-```
-
-<!-- deploy 04/07/2026 13:18:31 -->
-
-<!-- deploy publico 04/07/2026 13:23:26 -->

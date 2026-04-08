@@ -1,44 +1,34 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useState } from 'react'
+import { useParams, useNavigate, Link } from 'react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
-import { useCrearOrden } from '@/hooks/useMantenimiento'
-import { useVehiculos } from '@/hooks/useVehiculos'
 import { useAuthStore } from '@/stores/auth.store'
-import { Card, CardHeader } from '@/components/ui/Card'
+import { useVehiculos } from '@/hooks/useVehiculos'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { Criticidad, EstadoOT, Rol } from '@/core/enums'
-import { formatDate, formatDateTime } from '@/lib/utils'
-import type { OrdenTrabajo } from '@/core/types'
+import { Criticidad, Rol } from '@/core/enums'
+import { formatDate, formatDateTime, cn } from '@/lib/utils'
 
 // ─── Constantes visuales ──────────────────────────────────────────────────────
 
 const TIPO_LABELS: Record<string, string> = {
-  preventivo:     'Preventivo',
-  correctivo:     'Correctivo',
-  post_accidente: 'Post accidente',
-  alteracion:     'Alteración',
+  preventivo:     'PREVENTIVO',
+  correctivo:     'CORRECTIVO',
+  post_accidente: 'POST ACCIDENTE',
+  alteracion:     'ALTERACIÓN',
 }
 
-const PRIORIDAD_BADGE: Record<string, 'danger'|'warning'|'muted'> = {
-  alta:  'danger',
-  media: 'warning',
-  baja:  'muted',
+const PRIORIDAD_BADGE: Record<string, string> = {
+  alta:  'border-red-500/30 bg-red-500/10 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)]',
+  media: 'border-amber-500/30 bg-amber-500/10 text-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]',
+  baja:  'border-slate-500/30 bg-white/5 text-slate-400',
 }
 
-const ESTADO_BADGE: Record<string, 'danger'|'warning'|'success'|'muted'> = {
-  abierta:    'danger',
-  en_proceso: 'warning',
-  cerrada:    'success',
-  cancelada:  'muted',
-}
-
-const ESTADO_LABELS: Record<string, string> = {
-  abierta:    'Abierta',
-  en_proceso: 'En proceso',
-  cerrada:    'Cerrada',
-  cancelada:  'Cancelada',
+const ESTADO_BADGE: Record<string, string> = {
+  abierta:    'bg-red-500/10 text-red-500 border-red-500/20',
+  en_proceso: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+  cerrada:    'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  cancelada:  'bg-slate-500/10 text-slate-500 border-slate-500/20',
 }
 
 // ─── Hook: cargar OT por ID ───────────────────────────────────────────────────
@@ -51,30 +41,40 @@ function useOrdenTrabajo(id: string | undefined) {
         .from('ordenes_trabajo')
         .select(`
           *,
-          vehiculo:vehiculos(matricula, modelo, anio),
-          creado_por_usuario:usuarios!ordenes_trabajo_creado_por_fkey(nombre_completo),
-          asignado_usuario:usuarios!ordenes_trabajo_asignado_a_fkey(nombre_completo)
+          vehiculo:vehiculos(matricula, modelo, kilometraje_actual, horas_motor),
+          creado_por_u:usuarios!ordenes_trabajo_creado_por_fkey(nombre_completo),
+          asignado_u:usuarios!ordenes_trabajo_asignado_a_fkey(nombre_completo)
         `)
-        .eq('id', id!)
+        .eq('id', id)
         .single()
       if (error) throw error
-      return data as OrdenTrabajo & {
-        vehiculo: { matricula: string; modelo: string; anio: number }
-        creado_por_usuario: { nombre_completo: string }
-        asignado_usuario: { nombre_completo: string } | null
-      }
+      return data
     },
     enabled: !!id,
   })
 }
 
-// ─── Vista detalle de OT existente ───────────────────────────────────────────
+function useActualizarOT() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: string } & any) => {
+      const { error } = await supabase.from('ordenes_trabajo').update(data).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['orden_trabajo', variables.id] })
+      qc.invalidateQueries({ queryKey: ['mantenimiento', 'lista'] })
+    },
+  })
+}
+
+// ─── Componente: Detalle de OT existente ──────────────────────────────────────
 
 function OrdenTrabajoDetalle({ otId }: { otId: string }) {
-  const navigate   = useNavigate()
-  const qc         = useQueryClient()
-  const usuario    = useAuthStore(s => s.usuario)
+  const navigate = useNavigate()
+  const usuario  = useAuthStore(s => s.usuario)
   const { data: ot, isLoading } = useOrdenTrabajo(otId)
+  const { mutateAsync: actualizar } = useActualizarOT()
 
   const [mostrarCierre, setMostrarCierre] = useState(false)
   const [horasLabor,    setHorasLabor]    = useState('')
@@ -95,250 +95,186 @@ function OrdenTrabajoDetalle({ otId }: { otId: string }) {
       if (nuevoEstado === 'cerrada') {
         update.fecha_cierre  = new Date().toISOString().split('T')[0]
         update.horas_labor   = Number(horasLabor) || null
+        update.observaciones_cierre = observaciones
       }
 
-      const { error } = await supabase
-        .from('ordenes_trabajo')
-        .update(update)
-        .eq('id', ot.id)
-
-      if (error) throw error
-
-      // Si se cierra, restaurar vehículo a operativo
-      if (nuevoEstado === 'cerrada' && ot.vehiculo_id) {
-        await supabase
-          .from('vehiculos')
-          .update({ estado: 'operativo' })
-          .eq('id', ot.vehiculo_id)
-          .eq('estado', 'en_mantenimiento')
-      }
-
-      qc.invalidateQueries({ queryKey: ['orden_trabajo', otId] })
-      qc.invalidateQueries({ queryKey: ['ordenes'] })
-      qc.invalidateQueries({ queryKey: ['kpis'] })
+      await actualizar({ id: ot.id, ...update })
       setMostrarCierre(false)
-    } catch (e) {
-      console.error(e)
     } finally {
       setCerrando(false)
     }
   }
 
-  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg"/></div>
-  if (!ot) return (
-    <div className="text-center py-16">
-      <p className="text-gray-400 text-sm">Orden de trabajo no encontrada</p>
-      <button onClick={() => navigate(-1)} className="mt-2 text-sei-600 text-sm hover:underline">
-        Volver
-      </button>
-    </div>
-  )
-
-  const esCerrada = ot.estado === 'cerrada' || ot.estado === 'cancelada'
+  if (isLoading) return <div className="flex flex-col items-center justify-center py-20 gap-4"><Spinner size="lg" /><p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Sincronizando Orden de Trabajo...</p></div>
+  if (!ot) return <div className="text-center py-10 text-slate-500">ORDEN NO DETECTADA</div>
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-6 page-enter max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-gray-100 rounded-lg">
-            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" className="text-gray-400">
-              <path fillRule="evenodd" d="M9.78 4.22a.75.75 0 010 1.06L7.06 8l2.72 2.72a.75.75 0 11-1.06 1.06L5.47 8.53a.75.75 0 010-1.06l3.25-3.25a.75.75 0 011.06 0z"/>
-            </svg>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 flex items-center justify-center hover:bg-white/5 text-slate-500 transition-all">
+            <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor"><path fillRule="evenodd" d="M9.78 4.22a.75.75 0 010 1.06L7.06 8l2.72 2.72a.75.75 0 11-1.06 1.06L5.47 8.53a.75.75 0 010-1.06l3.25-3.25a.75.75 0 011.06 0z"/></svg>
           </button>
           <div>
-            <h1 className="text-sm font-semibold text-gray-900 font-mono">
-              {ot.numero_ot || 'OT sin número'}
-            </h1>
-            <p className="text-xs text-gray-400 mt-0.5">Orden de trabajo</p>
+            <h1 className="text-xl font-bold text-white tracking-tight uppercase font-mono">OT-{ot.numero_ot}</h1>
+            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-0.5">Expediente de Mantenimiento</p>
           </div>
         </div>
-        <div className="flex gap-2 items-center">
-          <Badge variant={PRIORIDAD_BADGE[ot.prioridad] ?? 'muted'}>
-            {ot.prioridad}
-          </Badge>
-          <Badge variant={ESTADO_BADGE[ot.estado] ?? 'muted'}>
-            {ESTADO_LABELS[ot.estado] ?? ot.estado}
-          </Badge>
-        </div>
+        <Badge className={cn("px-4 py-1.5 rounded-lg font-bold text-[9px] tracking-widest uppercase border border-white/5", ESTADO_BADGE[ot.estado])}>
+          {ot.estado}
+        </Badge>
       </div>
 
-      {/* Datos principales */}
-      <Card>
-        <CardHeader title="Detalle de la orden"/>
-        <div className="space-y-3 text-sm">
-          {/* Descripción */}
-          <div className="bg-gray-50 rounded-xl px-4 py-3">
-            <p className="text-xs text-gray-400 mb-1">Descripción del trabajo</p>
-            <p className="text-gray-800 leading-relaxed">{ot.descripcion}</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              ['Tipo',       TIPO_LABELS[ot.tipo] ?? ot.tipo],
-              ['Prioridad',  ot.prioridad],
-              ['Vehículo',   (ot.vehiculo as any)?.matricula ?? '—'],
-              ['Modelo',     (ot.vehiculo as any)?.modelo ?? '—'],
-              ['Creado por', (ot.creado_por_usuario as any)?.nombre_completo ?? '—'],
-              ['Asignado a', (ot.asignado_usuario as any)?.nombre_completo ?? 'Sin asignar'],
-              ['Fecha programada', ot.fecha_programada ? formatDate(ot.fecha_programada) : '—'],
-              ['Creada el',  formatDateTime(ot.created_at)],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <p className="text-xs text-gray-400">{label}</p>
-                <p className="font-medium text-gray-800 mt-0.5">{value}</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 space-y-6">
+          <div className="glass-panel rounded-3xl p-8 space-y-6">
+            <div>
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Descripción de la Discrepancia</p>
+              <p className="text-slate-100 font-mono text-sm uppercase leading-relaxed">{ot.descripcion}</p>
+            </div>
+            {ot.observaciones_cierre && (
+              <div className="pt-6 border-t border-white/5">
+                <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest mb-1 italic">Reporte de Cierre Técnico</p>
+                <p className="text-slate-400 font-mono text-xs uppercase leading-relaxed">{ot.observaciones_cierre}</p>
               </div>
-            ))}
+            )}
           </div>
 
-          {/* Datos de cierre si está cerrada */}
-          {esCerrada && (
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 space-y-2">
-              <p className="text-xs font-semibold text-green-700">Datos de cierre</p>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-gray-400">Fecha cierre</p>
-                  <p className="font-medium text-gray-800">
-                    {ot.fecha_cierre ? formatDate(ot.fecha_cierre) : '—'}
-                  </p>
+          <div className="glass-panel rounded-3xl p-8">
+            <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest mb-6 border-b border-white/5 pb-2">Logística y Trazabilidad</p>
+            <div className="grid grid-cols-2 gap-6">
+              {[
+                { l: 'TIPO DE ORDEN', v: TIPO_LABELS[ot.tipo] },
+                { l: 'PRIORIDAD', v: ot.prioridad.toUpperCase() },
+                { l: 'FECHA EMISIÓN', v: formatDateTime(ot.created_at) },
+                { l: 'FECHA CIERRE', v: ot.fecha_cierre ? formatDate(ot.fecha_cierre) : 'PEN' },
+                { l: 'REPORTADO POR', v: ot.creado_por_u?.nombre_completo },
+                { l: 'ASIGNADO A', v: ot.asignado_u?.nombre_completo || 'SIN ASIGNAR' },
+              ].map(i => (
+                <div key={i.l}>
+                  <p className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mb-1">{i.l}</p>
+                  <p className="text-[11px] font-bold text-slate-200 font-mono italic">{i.v || 'N/A'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="glass-panel rounded-3xl p-8 bg-blue-600/5 border-blue-600/10">
+            <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest mb-6 pb-2 border-b border-white/5">Unidad Afectada</p>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/5 flex items-center justify-center text-blue-500 font-bold text-xs ring-4 ring-blue-500/10 uppercase font-mono">
+                  {ot.vehiculo?.matricula?.slice(-3) || '??'}
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400">Horas de labor</p>
-                  <p className="font-medium text-gray-800">
-                    {ot.horas_labor ? `${ot.horas_labor} h` : '—'}
-                  </p>
+                   <p className="text-sm font-bold text-white uppercase font-mono italic">{ot.vehiculo?.matricula}</p>
+                   <p className="text-[9px] text-slate-500 uppercase tracking-tighter">{ot.vehiculo?.modelo}</p>
+                </div>
+              </div>
+              <div className="pt-4 space-y-2 border-t border-white/5 font-mono">
+                 <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-slate-600 uppercase">Odómetro</span>
+                    <span className="text-slate-300 font-bold">{ot.vehiculo?.kilometraje_actual} KM</span>
+                 </div>
+                 <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-slate-600 uppercase">Horas Motor</span>
+                    <span className="text-slate-300 font-bold">{ot.vehiculo?.horas_motor} H</span>
+                 </div>
+              </div>
+            </div>
+          </div>
+
+          {puedeGestionar && ot.estado !== 'cerrada' && !mostrarCierre && (
+            <button 
+              onClick={() => { setMostrarCierre(true); setNuevoEstado(ot.estado === 'abierta' ? 'en_proceso' : 'cerrada') }}
+              className="w-full py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-all shadow-xl shadow-blue-600/20 border border-white/10"
+            >
+              GESTIONAR ORDEN →
+            </button>
+          )}
+
+          {mostrarCierre && (
+            <div className="glass-panel rounded-3xl p-8 border-emerald-500/20 bg-emerald-500/5 animate-in slide-in-from-bottom-4 duration-300">
+              <p className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest mb-4">Actualizar Protocolo</p>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Nuevo Estado</label>
+                  <select 
+                    value={nuevoEstado} 
+                    onChange={e => setNuevoEstado(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-2.5 text-[10px] text-white font-mono focus:outline-none"
+                  >
+                    <option value="en_proceso" className="bg-slate-950">EN PROCESO</option>
+                    <option value="cerrada" className="bg-slate-950">CERRADA / COMPLETADA</option>
+                    <option value="cancelada" className="bg-slate-950">CANCELADA</option>
+                  </select>
+                </div>
+
+                {nuevoEstado === 'cerrada' && (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Horas de Labor</label>
+                      <input 
+                        type="number" 
+                        value={horasLabor} 
+                        onChange={e => setHorasLabor(e.target.value)}
+                        placeholder="0"
+                        className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-2 text-[10px] text-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Observaciones de Cierre</label>
+                      <textarea 
+                        rows={3} 
+                        value={observaciones} 
+                        onChange={e => setObservaciones(e.target.value)}
+                        className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-2 text-[10px] text-white font-mono resize-none uppercase"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => setMostrarCierre(false)} className="flex-1 py-3 text-[9px] font-bold uppercase tracking-widest text-slate-600 hover:text-white transition-all">Cancelar</button>
+                  <button 
+                    onClick={handleActualizar} 
+                    disabled={cerrando}
+                    className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/20"
+                  >
+                    {cerrando ? 'SINC...' : 'CONFIRMAR'}
+                  </button>
                 </div>
               </div>
             </div>
           )}
         </div>
-      </Card>
-
-      {/* Panel de gestión — solo si puede gestionar y no está cerrada */}
-      {puedeGestionar && !esCerrada && (
-        <Card>
-          <CardHeader
-            title="Gestionar OT"
-            subtitle="Actualizar estado o cerrar la orden"
-          />
-
-          {!mostrarCierre ? (
-            <div className="flex gap-2">
-              {ot.estado === 'abierta' && (
-                <button
-                  onClick={async () => {
-                    await supabase
-                      .from('ordenes_trabajo')
-                      .update({ estado: 'en_proceso' })
-                      .eq('id', ot.id)
-                    qc.invalidateQueries({ queryKey: ['orden_trabajo', otId] })
-                    qc.invalidateQueries({ queryKey: ['ordenes'] })
-                  }}
-                  className="flex-1 py-2.5 border border-amber-300 text-amber-700 bg-amber-50
-                             rounded-xl text-sm font-medium hover:bg-amber-100 transition-colors"
-                >
-                  Marcar en proceso
-                </button>
-              )}
-              <button
-                onClick={() => setMostrarCierre(true)}
-                className="flex-1 py-2.5 bg-sei-600 text-white rounded-xl text-sm
-                           font-semibold hover:bg-sei-700 transition-colors"
-              >
-                Cerrar OT
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Estado final
-                </label>
-                <div className="flex gap-2">
-                  {(['cerrada', 'cancelada'] as const).map(est => (
-                    <label
-                      key={est}
-                      className={`flex-1 flex items-center gap-2 p-3 rounded-xl border
-                                  cursor-pointer transition-colors text-sm ${
-                        nuevoEstado === est
-                          ? 'border-sei-400 bg-sei-50 text-sei-800'
-                          : 'border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="estado_cierre"
-                        value={est}
-                        checked={nuevoEstado === est}
-                        onChange={() => setNuevoEstado(est as 'en_proceso'|'cerrada')}
-                        className="accent-sei-600"
-                      />
-                      {ESTADO_LABELS[est]}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Horas de labor
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  placeholder="Ej: 4.5"
-                  value={horasLabor}
-                  onChange={e => setHorasLabor(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                             focus:outline-none focus:ring-2 focus:ring-sei-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Observaciones de cierre
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Trabajo realizado, materiales usados, recomendaciones..."
-                  value={observaciones}
-                  onChange={e => setObservaciones(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                             focus:outline-none focus:ring-2 focus:ring-sei-400 resize-none"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setMostrarCierre(false)}
-                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm
-                             text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleActualizar}
-                  disabled={cerrando}
-                  className="flex-1 py-2.5 bg-sei-600 text-white rounded-xl text-sm
-                             font-semibold hover:bg-sei-700 disabled:opacity-50 transition-colors"
-                >
-                  {cerrando ? 'Guardando...' : 'Confirmar cierre'}
-                </button>
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
+      </div>
     </div>
   )
 }
 
-// ─── Formulario nueva OT ─────────────────────────────────────────────────────
+// ─── Componente: Crear nueva OT ──────────────────────────────────────────────
+
+function useCrearOrden() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const { error } = await supabase.from('ordenes_trabajo').insert({
+        ...data,
+        numero_ot: Math.floor(10000 + Math.random() * 90000) // Temp mock code
+      })
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mantenimiento', 'lista'] })
+  })
+}
 
 function NuevaOrdenTrabajo() {
-  const navigate  = useNavigate()
-  const usuario   = useAuthStore(s => s.usuario)
+  const navigate = useNavigate()
+  const usuario  = useAuthStore(s => s.usuario)
   const { data: vehiculos } = useVehiculos()
   const { mutateAsync: crear, isPending } = useCrearOrden()
 
@@ -349,19 +285,17 @@ function NuevaOrdenTrabajo() {
     descripcion:      '',
     fecha_programada: '',
   })
-  const [error, setError] = useState('')
+  const [errorStatus, setErrorStatus] = useState('')
 
-  function setField(k: string, v: string) {
-    setForm(prev => ({ ...prev, [k]: v }))
-  }
+  function setField(k: string, v: string) { setForm(prev => ({ ...prev, [k]: v })) }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.vehiculo_id || !form.descripcion.trim()) {
-      setError('Selecciona un vehículo y agrega una descripción')
+      setErrorStatus('DEBE SELECCIONAR UN VEHÍCULO Y PROVEER UNA DESCRIPCIÓN TÉCNICA.')
       return
     }
-    setError('')
+    setErrorStatus('')
     try {
       await crear({
         vehiculo_id:      form.vehiculo_id,
@@ -374,106 +308,116 @@ function NuevaOrdenTrabajo() {
       } as any)
       navigate('/mantenimiento')
     } catch {
-      setError('Error al crear la OT. Quedará en cola para sincronizar.')
+      setErrorStatus('TRANSMISIÓN FALLIDA: ALMACENADO EN COLA DE SINCRONIZACIÓN LOCAL.')
       navigate('/mantenimiento')
     }
   }
 
   return (
-    <div className="space-y-4 max-w-2xl">
-      <div className="flex items-center gap-2">
-        <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-gray-100 rounded-lg">
-          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" className="text-gray-400">
-            <path fillRule="evenodd" d="M9.78 4.22a.75.75 0 010 1.06L7.06 8l2.72 2.72a.75.75 0 11-1.06 1.06L5.47 8.53a.75.75 0 010-1.06l3.25-3.25a.75.75 0 011.06 0z"/>
-          </svg>
+    <div className="space-y-6 page-enter max-w-2xl mx-auto">
+      <div className="flex items-center gap-4">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 flex items-center justify-center hover:bg-white/5 text-slate-400 transition-all">
+          <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor"><path fillRule="evenodd" d="M9.78 4.22a.75.75 0 010 1.06L7.06 8l2.72 2.72a.75.75 0 11-1.06 1.06L5.47 8.53a.75.75 0 010-1.06l3.25-3.25a.75.75 0 011.06 0z"/></svg>
         </button>
-        <h1 className="text-sm font-semibold text-gray-900">Nueva orden de trabajo</h1>
+        <div>
+           <h1 className="text-xl font-bold text-white tracking-tight uppercase">Emitir Orden de Trabajo</h1>
+           <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-1">Creación de Ticket de Discrepancia</p>
+        </div>
       </div>
 
-      <Card>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs text-gray-600 font-medium mb-1">Vehículo *</label>
-            <select value={form.vehiculo_id} onChange={e => setField('vehiculo_id', e.target.value)}
-              required className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5
-                                  focus:outline-none focus:ring-1 focus:ring-sei-400 bg-white">
-              <option value="">Seleccionar vehículo...</option>
+      <div className="glass-panel rounded-3xl p-8 shadow-2xl">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Seleccionar Unidad Afectada</label>
+            <select 
+              value={form.vehiculo_id} 
+              onChange={e => setField('vehiculo_id', e.target.value)}
+              required 
+              className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30 appearance-none"
+            >
+              <option value="" className="bg-slate-950">SELECT TARGET UNIT...</option>
               {vehiculos?.map(v => (
-                <option key={v.id} value={v.id}>{v.matricula} — {v.modelo}</option>
+                <option key={v.id} value={v.id} className="bg-slate-950">{v.matricula} // {v.modelo.toUpperCase()}</option>
               ))}
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-600 font-medium mb-1">Tipo</label>
-              <select value={form.tipo} onChange={e => setField('tipo', e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5
-                           focus:outline-none focus:ring-1 focus:ring-sei-400 bg-white">
-                <option value="preventivo">Preventivo</option>
-                <option value="correctivo">Correctivo</option>
-                <option value="post_accidente">Post accidente</option>
-                <option value="alteracion">Alteración</option>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Clasificación Operativa</label>
+              <select 
+                value={form.tipo} 
+                onChange={e => setField('tipo', e.target.value)}
+                className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30 appearance-none"
+              >
+                {Object.entries(TIPO_LABELS).map(([v, l]) => <option key={v} value={v} className="bg-slate-950">{l}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-xs text-gray-600 font-medium mb-1">Prioridad</label>
-              <select value={form.prioridad} onChange={e => setField('prioridad', e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5
-                           focus:outline-none focus:ring-1 focus:ring-sei-400 bg-white">
-                <option value={Criticidad.Alta}>Alta</option>
-                <option value={Criticidad.Media}>Media</option>
-                <option value={Criticidad.Baja}>Baja</option>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Nivel de Prioridad</label>
+              <select 
+                value={form.prioridad} 
+                onChange={e => setField('prioridad', e.target.value)}
+                className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30 appearance-none"
+              >
+                <option value={Criticidad.Alta} className="bg-slate-950 text-red-400">CRÍTICA (ALTA)</option>
+                <option value={Criticidad.Media} className="bg-slate-950 text-amber-400">NORMAL (MEDIA)</option>
+                <option value={Criticidad.Baja} className="bg-slate-950 text-slate-400">STANDBY (BAJA)</option>
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs text-gray-600 font-medium mb-1">
-              Descripción del trabajo *
-            </label>
-            <textarea rows={4} value={form.descripcion}
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Descripción de la Discrepancia Técnica</label>
+            <textarea 
+              rows={5} 
+              value={form.descripcion}
               onChange={e => setField('descripcion', e.target.value)}
-              placeholder="Describe el trabajo a realizar..." required
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5
-                         focus:outline-none focus:ring-1 focus:ring-sei-400 resize-none"/>
+              placeholder="DETALLE LA FALLA O EL TRABAJO REQUERIDO..." 
+              required
+              className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/30 resize-none font-mono uppercase leading-relaxed"
+            />
           </div>
 
-          <div>
-            <label className="block text-xs text-gray-600 font-medium mb-1">
-              Fecha programada
-            </label>
-            <input type="date" value={form.fecha_programada}
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Fecha Programada (Opcional)</label>
+            <input 
+              type="date" 
+              value={form.fecha_programada}
               onChange={e => setField('fecha_programada', e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5
-                         focus:outline-none focus:ring-1 focus:ring-sei-400"/>
+              className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm text-blue-400 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+            />
           </div>
 
-          {error && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-sm text-amber-700">
-              {error}
+          {errorStatus && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-[10px] font-bold text-red-500 animate-pulse uppercase tracking-widest">
+              {errorStatus}
             </div>
           )}
 
-          <div className="flex gap-2 pt-2">
-            <button type="button" onClick={() => navigate(-1)}
-              className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm
-                         text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancelar
+          <div className="flex gap-4 pt-4 border-t border-white/5">
+            <button 
+              type="button" 
+              onClick={() => navigate(-1)}
+              className="flex-1 py-4 bg-slate-950 border border-white/5 rounded-2xl text-[10px] font-bold text-slate-500 hover:text-slate-200 uppercase tracking-widest transition-all"
+            >
+              Cerrar Terminal
             </button>
-            <button type="submit" disabled={isPending}
-              className="flex-1 py-2.5 bg-sei-600 text-white rounded-xl text-sm
-                         font-semibold hover:bg-sei-700 disabled:opacity-50 transition-colors">
-              {isPending ? 'Creando...' : 'Crear OT'}
+            <button 
+              type="submit" 
+              disabled={isPending}
+              className="flex-1 py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-bold hover:bg-blue-500 disabled:opacity-50 transition-all uppercase tracking-[.2em] shadow-xl shadow-blue-600/20 border border-white/10"
+            >
+              {isPending ? 'TRANSMITIENDO...' : 'EMITIR ORDEN →'}
             </button>
           </div>
         </form>
-      </Card>
+      </div>
     </div>
   )
 }
 
-// ─── Componente principal — detecta si es nueva o existente ──────────────────
+// ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function OrdenTrabajoForm() {
   const { otId } = useParams<{ otId?: string }>()

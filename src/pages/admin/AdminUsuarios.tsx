@@ -2,11 +2,9 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
 import { adminService, type CrearUsuarioInput } from '@/services/admin.service'
-import { Card, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { formatDate, initiales } from '@/lib/utils'
-import { Rol } from '@/core/enums'
+import { formatDate, initiales, cn } from '@/lib/utils'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -30,13 +28,13 @@ const ROL_LABELS: Record<string, string> = {
   dsna:           'DSNA',
 }
 
-const ROL_BADGE: Record<string, 'default'|'success'|'warning'|'info'|'muted'> = {
-  jefe_nacional:  'warning',
-  jefe_regional:  'info',
-  jefe_estacion:  'success',
-  bombero:        'default',
-  odma:           'muted',
-  dsna:           'info',
+const ROL_CONFIG: Record<string, { color: string; bg: string }> = {
+  jefe_nacional:  { color: 'text-amber-500',   bg: 'bg-amber-500/10' },
+  jefe_regional:  { color: 'text-indigo-400',  bg: 'bg-indigo-400/10' },
+  jefe_estacion:  { color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+  bombero:        { color: 'text-blue-400',    bg: 'bg-blue-400/10' },
+  odma:           { color: 'text-slate-400',   bg: 'bg-slate-400/10' },
+  dsna:           { color: 'text-purple-400',  bg: 'bg-purple-400/10' },
 }
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -66,7 +64,7 @@ function useEstaciones() {
         id:              e.id,
         nombre:          e.nombre,
         codigo_iata:     e.codigo_iata,
-        regional_nombre: (e.regional as { nombre: string } | null)?.nombre ?? '',
+        regional_nombre: (e.regional as any)?.[0]?.nombre ?? '',
       })) as EstacionOption[]
     },
   })
@@ -88,55 +86,53 @@ function ModalResultado({ resultado, onCerrar }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
-        {/* Ícono éxito */}
-        <div className="flex flex-col items-center text-center gap-2">
-          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-            <svg viewBox="0 0 20 20" width="24" height="24" fill="currentColor" className="text-green-600">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in duration-300">
+      <div className="glass-panel border-white/10 rounded-3xl w-full max-w-sm shadow-2xl p-8 space-y-6 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-50" />
+        
+        <div className="flex flex-col items-center text-center gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+            <svg viewBox="0 0 20 20" width="28" height="28" fill="currentColor" className="text-emerald-500">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
             </svg>
           </div>
-          <p className="text-sm font-semibold text-gray-900">Usuario creado exitosamente</p>
-          <p className="text-xs text-gray-500">{resultado.nombre}</p>
-          <p className="text-xs text-gray-400">{resultado.email}</p>
+          <div>
+            <p className="text-lg font-bold text-white uppercase tracking-tight">Usuario Autorizado</p>
+            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-1">{resultado.nombre}</p>
+          </div>
         </div>
 
-        {/* Contraseña temporal */}
         {resultado.password ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-            <p className="text-xs font-semibold text-amber-800">
-              Contraseña temporal — comunícala de forma segura
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-base font-mono font-bold text-amber-900 tracking-widest">
+          <div className="bg-slate-950/50 border border-amber-500/20 rounded-2xl p-5 space-y-3">
+            <p className="text-[9px] font-bold text-amber-500 uppercase tracking-widest">Credencial de acceso temporal</p>
+            <div className="flex items-center gap-3">
+              <code className="flex-1 text-xl font-mono font-bold text-white tracking-[.2em]">
                 {resultado.password}
               </code>
               <button
                 onClick={copiar}
-                className="text-xs text-amber-700 border border-amber-300 rounded-lg px-2 py-1 hover:bg-amber-100 transition-colors shrink-0"
+                className="text-[10px] font-bold text-amber-500 border border-amber-500/20 rounded-lg px-3 py-1.5 hover:bg-amber-500/10 transition-all shrink-0"
               >
-                {copiado ? '✓ Copiado' : 'Copiar'}
+                {copiado ? 'COPIADO' : 'COPIAR'}
               </button>
             </div>
-            <p className="text-[11px] text-amber-600 leading-snug">
-              El usuario deberá cambiar esta contraseña en su primer acceso.
+            <p className="text-[9px] text-slate-500 leading-snug uppercase font-mono italic">
+              Obligatorio: el usuario debe rotar esta clave en el primer inicio de sesión.
             </p>
           </div>
         ) : (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <p className="text-xs text-blue-800">
-              Se envió un correo de invitación a <strong>{resultado.email}</strong>.
-              El usuario recibirá un enlace para establecer su contraseña.
+          <div className="bg-slate-950/50 border border-blue-500/20 rounded-2xl p-5">
+            <p className="text-[10px] text-blue-400 font-mono uppercase leading-relaxed">
+              Dispatch: Se ha enviado un enlace de sincronización a <strong className="text-white">{resultado.email}</strong>.
             </p>
           </div>
         )}
 
         <button
           onClick={onCerrar}
-          className="w-full py-2.5 bg-sei-600 text-white rounded-xl text-sm font-semibold hover:bg-sei-700 transition-colors"
+          className="w-full py-4 bg-slate-900 border border-white/5 text-white rounded-2xl text-[10px] font-bold hover:bg-white/5 transition-all uppercase tracking-widest"
         >
-          Entendido
+          Confirmar Protocolo
         </button>
       </div>
     </div>
@@ -191,9 +187,9 @@ function FormNuevoUsuario({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.nombre_completo.trim()) return setError('El nombre es requerido')
-    if (!form.email.includes('@'))    return setError('Email inválido')
-    if (!form.estacion_id)            return setError('Selecciona una estación')
+    if (!form.nombre_completo.trim()) return setError('EL NOMBRE ES REQUERIDO')
+    if (!form.email.includes('@'))    return setError('EMAIL NO VÁLIDO')
+    if (!form.estacion_id)            return setError('SELECCIONE ESTACIÓN')
     crear()
   }
 
@@ -205,96 +201,92 @@ function FormNuevoUsuario({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 pt-16 overflow-y-auto">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+    <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-start justify-center z-[60] p-4 pt-12 overflow-y-auto animate-in slide-in-from-bottom-8 duration-500">
+      <div className="glass-panel border-white/10 rounded-3xl w-full max-w-2xl shadow-2xl relative overflow-hidden mb-12">
+        <div className="absolute top-0 left-0 w-full h-1 bg-blue-600/50" />
+        
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-8 py-6 border-b border-white/5 bg-white/5">
           <div>
-            <p className="text-sm font-semibold text-gray-900">Nuevo usuario</p>
-            <p className="text-xs text-gray-400 mt-0.5">Todos los campos marcados con * son obligatorios</p>
+            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-[.2em] mb-1">Personnel Induction Protocol</p>
+            <h2 className="text-xl font-bold text-white uppercase tracking-tight">Alta de Nuevo Operativo</h2>
           </div>
           <button
             onClick={onCerrar}
-            className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+            className="text-slate-500 hover:text-white transition-all text-[10px] font-bold uppercase tracking-widest px-4 py-2 bg-slate-900 border border-white/5 rounded-xl"
           >
-            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" className="text-gray-400">
-              <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/>
-            </svg>
+            Cerrar [X]
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-8 space-y-8">
           {/* Nombre y email */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Nombre completo *
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">
+                Nombre Completo del Operativo *
               </label>
               <input
                 type="text"
-                placeholder="Carlos Gómez Pérez"
+                placeholder="EJ: CARLOS GÓMEZ PÉREZ"
                 value={form.nombre_completo}
                 onChange={e => set('nombre_completo', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sei-400 focus:border-transparent"
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/30 uppercase font-mono font-bold"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Correo institucional *
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">
+                ID / Correo Institucional *
               </label>
               <input
                 type="email"
                 placeholder="cgomez@aerocivil.gov.co"
                 value={form.email}
                 onChange={e => set('email', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sei-400 focus:border-transparent"
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-mono"
               />
             </div>
-          </div>
-
-          {/* Rol y teléfono */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Rol *</label>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Rol en Sistema *</label>
               <select
                 value={form.rol}
                 onChange={e => set('rol', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sei-400 bg-white"
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/30 appearance-none font-mono"
               >
                 {Object.entries(ROL_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+                  <option key={v} value={v} className="bg-slate-900">{l.toUpperCase()}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Teléfono
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">
+                Teléfono de Contacto
               </label>
               <input
                 type="tel"
                 placeholder="+57 300 0000000"
                 value={form.telefono}
                 onChange={e => set('telefono', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sei-400 focus:border-transparent"
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-mono"
               />
             </div>
           </div>
 
           {/* Estación */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Estación *</label>
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Nodo Estación de Servicio *</label>
             <select
               value={form.estacion_id}
               onChange={e => set('estacion_id', e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sei-400 bg-white"
+              className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/30 appearance-none font-mono"
             >
-              <option value="">Seleccionar estación...</option>
+              <option value="">SELECCIONAR DESTINO...</option>
               {Object.entries(porRegional).sort().map(([regional, ests]) => (
-                <optgroup key={regional} label={regional}>
+                <optgroup key={regional} label={regional.toUpperCase()} className="bg-slate-900 text-slate-500">
                   {ests.map(e => (
-                    <option key={e.id} value={e.id}>
-                      {e.codigo_iata} — {e.nombre}
+                    <option key={e.id} value={e.id} className="text-white">
+                      {e.codigo_iata} — {e.nombre?.toUpperCase()}
                     </option>
                   ))}
                 </optgroup>
@@ -303,66 +295,70 @@ function FormNuevoUsuario({
           </div>
 
           {/* Certificación TME */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                N° Certificado TME
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">
+                N° Certificado Técnico TME
               </label>
               <input
                 type="text"
-                placeholder="TME-2024-001"
+                placeholder="TME-XXXX-XXX"
                 value={form.numero_certificado}
                 onChange={e => set('numero_certificado', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sei-400 focus:border-transparent"
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3.5 text-sm text-blue-400 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/30 uppercase"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Vigencia del certificado
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">
+                Vigencia Legal del Certificado
               </label>
               <input
                 type="date"
-                value={form.certificado_vigencia}
+                value={form.certificado_vigencia || ''}
                 onChange={e => set('certificado_vigencia', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sei-400 focus:border-transparent"
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-mono"
               />
             </div>
           </div>
 
           {/* Modo de acceso */}
-          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-700">Modo de acceso inicial</p>
-            <div className="space-y-2">
+          <div className="bg-slate-950/50 border border-white/5 rounded-2xl p-6 space-y-4">
+            <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
+               <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+               Method of Activation
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 {
                   val: false,
-                  titulo:  'Contraseña temporal',
-                  desc:    'El sistema genera una contraseña. Tú se la comunicas al usuario.',
+                  titulo:  'CLAVE MANUAL',
+                  desc:    'EL SISTEMA GENERA UNA CLAVE PARA COMUNICACIÓN DIRECTA.',
                 },
                 {
                   val: true,
-                  titulo:  'Email de invitación',
-                  desc:    'Supabase envía un correo con enlace para que el usuario establezca su contraseña.',
+                  titulo:  'INVITAR POR EMAIL',
+                  desc:    'SUPABASE ENVÍA UN ENLACE DE CONFIGURACIÓN AL USUARIO.',
                 },
               ].map(op => (
                 <label
                   key={String(op.val)}
-                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  className={cn(
+                    "flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all",
                     form.enviar_email === op.val
-                      ? 'border-sei-400 bg-sei-50'
-                      : 'border-gray-200 bg-white hover:bg-gray-50'
-                  }`}
+                      ? "border-blue-500/40 bg-blue-500/5 shadow-lg shadow-blue-500/5"
+                      : "border-white/5 bg-slate-900/50 grayscale hover:grayscale-0 hover:bg-slate-900"
+                  )}
                 >
                   <input
                     type="radio"
                     name="modo_acceso"
                     checked={form.enviar_email === op.val}
                     onChange={() => set('enviar_email', op.val)}
-                    className="mt-0.5 accent-sei-600"
+                    className="mt-1 accent-blue-500"
                   />
                   <div>
-                    <p className="text-xs font-medium text-gray-800">{op.titulo}</p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">{op.desc}</p>
+                    <p className="text-[10px] font-bold text-white uppercase tracking-widest">{op.titulo}</p>
+                    <p className="text-[8px] text-slate-500 font-mono mt-1 uppercase leading-snug">{op.desc}</p>
                   </div>
                 </label>
               ))}
@@ -371,38 +367,28 @@ function FormNuevoUsuario({
 
           {/* Error */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-start gap-2">
-              <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" className="text-red-500 shrink-0 mt-0.5">
-                <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-4a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 8a1 1 0 110-2 1 1 0 010 2z"/>
-              </svg>
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-[10px] font-mono font-bold text-red-500 uppercase tracking-widest flex items-center gap-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Acciones */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-4 pt-4">
             <button
               type="button"
               onClick={onCerrar}
-              className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              className="flex-1 py-4 bg-slate-950 border border-white/5 rounded-2xl text-[10px] font-bold text-slate-500 hover:text-white transition-all uppercase tracking-widest"
             >
-              Cancelar
+              Desestimar
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="flex-1 py-2.5 bg-sei-600 text-white rounded-xl text-sm font-semibold
-                         hover:bg-sei-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-bold font-mono tracking-widest
+                         hover:bg-blue-500 shadow-xl shadow-blue-600/20 border border-white/10 disabled:opacity-50 transition-all"
             >
-              {isPending ? (
-                <>
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" strokeOpacity="0.3"/>
-                    <path d="M12 2a10 10 0 0110 10" strokeLinecap="round"/>
-                  </svg>
-                  Creando usuario...
-                </>
-              ) : 'Crear usuario'}
+              {isPending ? 'SYNCHRONIZING...' : 'AUTORIZAR INGRESO →'}
             </button>
           </div>
         </form>
@@ -448,176 +434,182 @@ export default function AdminUsuarios() {
   })
 
   function certColor(dias: number | null) {
-    if (dias === null) return 'text-gray-300'
-    if (dias <= 0)    return 'text-red-600 font-semibold'
-    if (dias <= 30)   return 'text-red-500'
-    if (dias <= 60)   return 'text-amber-500'
-    return 'text-green-600'
+    if (dias === null) return 'text-slate-700'
+    if (dias <= 0)    return 'text-red-500 font-bold'
+    if (dias <= 30)   return 'text-amber-500'
+    return 'text-emerald-500'
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 page-enter">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-sm font-semibold text-gray-900">Gestión de usuarios</h1>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {usuarios?.length ?? 0} usuarios registrados
+          <div className="flex items-center gap-2 mb-1">
+             <div className="w-1 h-3 bg-blue-600 rounded-full" />
+             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic leading-none">Security & HR Protocol</p>
+          </div>
+          <h1 className="text-2xl font-bold text-white tracking-tight uppercase">Gestión de Roles y Usuarios</h1>
+          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-[.25em] mt-1 italic">
+             {usuarios?.length ?? 0} NODOS DE IDENTIDAD REGISTRADOS EN LA RED
           </p>
         </div>
         <button
           onClick={() => setMostrarForm(true)}
-          className="px-4 py-2 bg-sei-600 text-white text-xs font-semibold rounded-xl
-                     hover:bg-sei-700 transition-colors flex items-center gap-1.5"
+          className="px-6 py-3 bg-blue-600 text-white text-[11px] font-bold rounded-2xl
+                     hover:bg-blue-500 transition-all uppercase tracking-widest shadow-xl shadow-blue-600/20 border border-white/10"
         >
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
-            <path d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/>
-          </svg>
-          Nuevo usuario
+          Alta de Nuevo Usuario +
         </button>
       </div>
 
       {/* Filtros */}
-      <div className="flex gap-2 flex-wrap">
-        <input
-          type="search"
-          placeholder="Buscar nombre, email, IATA..."
-          value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
-          className="flex-1 min-w-48 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm
-                     focus:outline-none focus:ring-1 focus:ring-sei-400"
-        />
+      <div className="flex gap-2 flex-wrap items-center">
+        <div className="flex-1 min-w-[280px] relative">
+          <input
+            type="search"
+            placeholder="FILTRAR POR NOMBRE, EMAIL O CÓDIGO IATA..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-3 text-xs text-white uppercase placeholder:text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-mono"
+          />
+        </div>
         <select
           value={filtroRol}
           onChange={e => setFiltroRol(e.target.value)}
-          className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm
-                     focus:outline-none focus:ring-1 focus:ring-sei-400"
+          className="bg-slate-900 border border-white/5 rounded-xl px-4 py-3 text-xs text-white uppercase focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-mono appearance-none min-w-[180px]"
         >
-          <option value="todos">Todos los roles</option>
+          <option value="todos">VER TODOS LOS ROLES</option>
           {Object.entries(ROL_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
+            <option key={v} value={v} className="bg-slate-900">{l.toUpperCase()}</option>
           ))}
         </select>
       </div>
 
       {/* Tabla */}
-      <Card padding={false}>
+      <div className="glass-panel border-white/5 rounded-2xl overflow-hidden shadow-2xl">
         {isLoading ? (
-          <div className="flex justify-center py-12"><Spinner /></div>
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <Spinner size="lg" />
+            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Sincronizando Base de Datos...</p>
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-gray-50 border-b border-gray-100">
+              <table className="w-full text-[10px]">
+                <thead className="bg-white/5 border-b border-white/5">
                   <tr>
-                    {['Usuario','Rol','Estación','Certificado','Estado','Acciones'].map(h => (
-                      <th key={h} className="text-left px-4 py-3 font-medium text-gray-500 whitespace-nowrap">{h}</th>
+                    {['OPERATIVO','ROL ASIGNADO','ESTACIÓN','CERTIFICADO','STATUS','MANDO'].map(h => (
+                      <th key={h} className="text-left px-6 py-4 font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filtrados?.map(u => (
-                    <tr
-                      key={u.id}
-                      className={`hover:bg-gray-50/60 transition-colors ${!u.activo ? 'opacity-50' : ''}`}
-                    >
-                      {/* Usuario */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-sei-100 flex items-center justify-center
-                                          text-sei-700 text-xs font-semibold shrink-0">
-                            {initiales(u.nombre_completo)}
+                <tbody className="divide-y divide-white/5">
+                  {filtrados?.map(u => {
+                    const rc = ROL_CONFIG[u.rol] || ROL_CONFIG.bombero
+                    return (
+                      <tr
+                        key={u.id}
+                        className={cn("hover:bg-white/5 transition-all group", !u.activo && "opacity-40 grayscale")}
+                      >
+                        {/* Usuario */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 flex items-center justify-center
+                                            text-blue-500 text-xs font-bold shrink-0 shadow-inner group-hover:border-blue-500/30 transition-colors">
+                              {initiales(u.nombre_completo)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-100 uppercase tracking-tight truncate max-w-[180px] group-hover:text-blue-400 transition-colors">{u.nombre_completo}</p>
+                              <p className="text-[9px] text-slate-500 font-mono truncate max-w-[180px]">{u.email}</p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-gray-900 truncate max-w-36">{u.nombre_completo}</p>
-                            <p className="text-gray-400 truncate max-w-36">{u.email}</p>
-                          </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Rol — editable inline */}
-                      <td className="px-4 py-3">
-                        <select
-                          value={u.rol}
-                          onChange={e => cambiarRol({ id: u.id, rol: e.target.value })}
-                          className="text-xs border border-transparent rounded-lg px-1.5 py-1
-                                     hover:border-gray-200 focus:outline-none focus:ring-1 focus:ring-sei-400
-                                     bg-transparent cursor-pointer"
-                        >
-                          {Object.entries(ROL_LABELS).map(([v, l]) => (
-                            <option key={v} value={v}>{l}</option>
-                          ))}
-                        </select>
-                      </td>
+                        {/* Rol — editable inline */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <select
+                            value={u.rol}
+                            onChange={e => cambiarRol({ id: u.id, rol: e.target.value })}
+                            className={cn(
+                              "text-[9px] font-bold border-none rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500/30 bg-transparent cursor-pointer uppercase tracking-tighter",
+                              rc.color, rc.bg
+                            )}
+                          >
+                            {Object.entries(ROL_LABELS).map(([v, l]) => (
+                              <option key={v} value={v} className="bg-slate-900 text-white">{l.toUpperCase()}</option>
+                            ))}
+                          </select>
+                        </td>
 
-                      {/* Estación */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          {u.estacion_iata && (
-                            <span className="font-mono font-semibold text-gray-700 bg-gray-100
-                                             px-1.5 py-0.5 rounded text-[10px]">
-                              {u.estacion_iata}
+                        {/* Estación */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-white/5 text-[9px] tracking-widest">
+                              {u.estacion_iata || 'N/A'}
                             </span>
-                          )}
-                          <span className="text-gray-500 truncate max-w-24">{u.estacion_nombre}</span>
-                        </div>
-                        <p className="text-gray-400 mt-0.5">{u.regional_nombre?.replace('Regional ', '')}</p>
-                      </td>
-
-                      {/* Certificado */}
-                      <td className="px-4 py-3">
-                        {u.certificado_vigencia ? (
-                          <div>
-                            <p className="text-gray-600">{formatDate(u.certificado_vigencia)}</p>
-                            <p className={certColor(u.cert_dias_restantes)}>
-                              {u.cert_dias_restantes === null ? '—'
-                                : u.cert_dias_restantes <= 0 ? 'VENCIDO'
-                                : `${u.cert_dias_restantes}d`}
-                            </p>
+                            <span className="text-slate-500 uppercase font-bold tracking-tighter truncate max-w-[120px]">{u.estacion_nombre}</span>
                           </div>
-                        ) : <span className="text-gray-300">—</span>}
-                      </td>
+                          <p className="text-[9px] text-slate-600 font-mono italic mt-1 uppercase">REG: {u.regional_nombre?.replace('Regional ', '')}</p>
+                        </td>
 
-                      {/* Estado */}
-                      <td className="px-4 py-3">
-                        <Badge variant={u.activo ? 'success' : 'muted'}>
-                          {u.activo ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </td>
+                        {/* Certificado */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {u.certificado_vigencia ? (
+                            <div>
+                              <p className="text-slate-600 font-mono text-[9px]">{formatDate(u.certificado_vigencia)}</p>
+                              <p className={cn("text-[9px] font-bold uppercase tracking-widest mt-0.5", certColor(u.cert_dias_restantes))}>
+                                {u.cert_dias_restantes === null ? '—'
+                                  : u.cert_dias_restantes <= 0 ? 'LICENCIA VENCIDA'
+                                  : `${u.cert_dias_restantes} DÍAS VIGENTE`}
+                              </p>
+                            </div>
+                          ) : <span className="text-slate-800 font-bold uppercase tracking-widest text-[8px]">SIN REGISTRO TME</span>}
+                        </td>
 
-                      {/* Acciones */}
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => toggleActivo({ id: u.id, activo: !u.activo })}
-                          className={`text-xs font-medium hover:underline transition-colors ${
-                            u.activo
-                              ? 'text-red-500 hover:text-red-700'
-                              : 'text-green-600 hover:text-green-800'
-                          }`}
-                        >
-                          {u.activo ? 'Desactivar' : 'Activar'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        {/* Estado */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                           <Badge variant={u.activo ? 'success' : 'muted'} className={cn("px-2 py-0.5 rounded-md font-bold text-[8px] uppercase tracking-widest", u.activo ? "bg-emerald-500/10 text-emerald-500 border-none" : "bg-slate-900 text-slate-600 border-none")}>
+                             {u.activo ? 'ACTIVO' : 'DE BAJA'}
+                           </Badge>
+                        </td>
+
+                        {/* Acciones */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => toggleActivo({ id: u.id, activo: !u.activo })}
+                            className={cn(
+                              "text-[9px] font-bold uppercase tracking-[.25em] transition-all px-3 py-1.5 rounded-lg border",
+                              u.activo
+                                ? "text-red-500 border-red-500/10 bg-red-500/5 hover:bg-red-500 hover:text-white"
+                                : "text-emerald-500 border-emerald-500/10 bg-emerald-500/5 hover:bg-emerald-500 hover:text-white"
+                            )}
+                          >
+                            {u.activo ? 'De-Auth' : 'Unlock'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
 
             {!filtrados?.length && (
-              <p className="text-sm text-gray-400 text-center py-8">Sin resultados</p>
+              <div className="text-center py-20 bg-slate-950/20">
+                <p className="text-[10px] font-bold text-slate-700 uppercase tracking-[.3em]">Cero coincidencias detectadas en este parámetro</p>
+              </div>
             )}
 
             {/* Footer con conteo */}
             {!!filtrados?.length && (
-              <div className="px-4 py-2.5 border-t border-gray-50 text-xs text-gray-400">
-                {filtrados.length} usuario{filtrados.length !== 1 ? 's' : ''}
-                {filtrados.length !== usuarios?.length && ` de ${usuarios?.length} total`}
+              <div className="px-6 py-3 border-t border-white/5 bg-white/5 text-[9px] font-mono text-slate-600 font-bold uppercase tracking-widest">
+                {filtrados.length} IDENTIDADES ACTIVAS EN LISTADO // TOTAL {usuarios?.length}
               </div>
             )}
           </>
         )}
-      </Card>
+      </div>
 
       {/* Modal: formulario nuevo usuario */}
       {mostrarForm && (
