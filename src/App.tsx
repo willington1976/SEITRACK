@@ -17,6 +17,8 @@ const DashboardEstacion   = lazy(() => import('@/pages/dashboard/DashboardEstaci
 const VehiculosList       = lazy(() => import('@/pages/vehiculos/VehiculosList'))
 const VehiculoDetail      = lazy(() => import('@/pages/vehiculos/VehiculoDetail'))
 const VehiculoForm        = lazy(() => import('@/pages/vehiculos/VehiculoForm'))
+const InspeccionesHome    = lazy(() => import('@/pages/inspecciones/InspeccionesHome'))
+const LibroHome           = lazy(() => import('@/pages/libro-operacion/LibroHome'))
 const InspeccionList      = lazy(() => import('@/pages/inspecciones/InspeccionList'))
 const InspeccionForm      = lazy(() => import('@/pages/inspecciones/InspeccionForm'))
 const OrdenesTrabajoList  = lazy(() => import('@/pages/mantenimiento/OrdenesTrabajoList'))
@@ -136,6 +138,10 @@ export default function App() {
         {/* App — requiere sesión */}
         <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<DashboardRouter />} />
+
+          {/* Rutas raíz para bombero - detectan vehículo automáticamente */}
+          <Route path="inspecciones" element={<InspeccionesHome />} />
+          <Route path="libro-operacion" element={<LibroHome />} />
 
           {/* Drill-down nacional → regional → estación */}
           <Route path="regional/:regionalId" element={<DrilldownRegional />} />
