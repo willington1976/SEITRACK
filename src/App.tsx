@@ -23,6 +23,8 @@ const OrdenesTrabajoList  = lazy(() => import('@/pages/mantenimiento/OrdenesTrab
 const OrdenTrabajoForm    = lazy(() => import('@/pages/mantenimiento/OrdenTrabajoForm'))
 const LibroOperacion      = lazy(() => import('@/pages/libro-operacion/LibroOperacion'))
 const ReportesAVC         = lazy(() => import('@/pages/reportes/ReportesAVC'))
+const DrilldownRegional   = lazy(() => import('@/pages/dashboard/DrilldownRegional'))
+const DrilldownEstacion   = lazy(() => import('@/pages/dashboard/DrilldownEstacion'))
 const AdminUsuarios       = lazy(() => import('@/pages/admin/AdminUsuarios'))
 const AdminChecklists     = lazy(() => import('@/pages/admin/AdminChecklists'))
 const RepuestosList       = lazy(() => import('@/pages/repuestos/RepuestosList'))
@@ -134,6 +136,11 @@ export default function App() {
         {/* App — requiere sesión */}
         <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<DashboardRouter />} />
+
+          {/* Drill-down nacional → regional → estación */}
+          <Route path="regional/:regionalId" element={<DrilldownRegional />} />
+          <Route path="estacion/:estacionId" element={<DrilldownEstacion />} />
+
 
           <Route path="vehiculos">
             <Route index element={<VehiculosList />} />

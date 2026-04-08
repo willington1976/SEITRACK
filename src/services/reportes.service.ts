@@ -85,3 +85,29 @@ export const reportesService = {
     return data?.[0] ?? null
   },
 }
+
+export interface EstacionDetalle {
+  id: string; nombre: string; codigo_iata: string
+  aeropuerto: string; ciudad: string; categoria_icao: string
+  regional_nombre: string; regional_codigo: string
+}
+
+// Función para obtener detalle de una estación específica por ID
+export async function getEstacionDetalle(estacionId: string): Promise<EstacionDetalle | null> {
+  const { data, error } = await supabase
+    .from('estaciones')
+    .select('*, regional:regionales(nombre, codigo)')
+    .eq('id', estacionId)
+    .single()
+  if (error) return null
+  return {
+    id:              data.id,
+    nombre:          data.nombre,
+    codigo_iata:     data.codigo_iata,
+    aeropuerto:      data.aeropuerto,
+    ciudad:          data.ciudad,
+    categoria_icao:  data.categoria_icao,
+    regional_nombre: (data.regional as any)?.nombre ?? '',
+    regional_codigo: (data.regional as any)?.codigo ?? '',
+  }
+}
