@@ -3,12 +3,12 @@ import { cn } from '@/lib/utils'
 type Variant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'muted'
 
 const variants: Record<Variant, string> = {
-  default: 'bg-gray-100 text-gray-700',
-  success: 'bg-green-50 text-green-700',
-  warning: 'bg-amber-50 text-amber-700',
-  danger:  'bg-red-50 text-red-700',
-  info:    'bg-blue-50 text-blue-700',
-  muted:   'bg-gray-50 text-gray-400',
+  default: 'bg-slate-800 text-slate-300 border border-slate-700',
+  success: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+  warning: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+  danger:  'bg-red-500/10 text-red-400 border border-red-500/20',
+  info:    'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+  muted:   'bg-slate-800/50 text-slate-500 border border-slate-800',
 }
 
 interface Props {

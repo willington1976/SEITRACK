@@ -1,42 +1,69 @@
 @import "tailwindcss";
 
 @theme {
-  --color-sei-50:  #e6f4f1;
-  --color-sei-100: #b3ddd6;
-  --color-sei-400: #1D9E75;
-  --color-sei-600: #0F6E56;
-  --color-sei-800: #085041;
-  --color-sei-900: #04342C;
+  /* Paleta Aero-Industrial */
+  --color-aero-black:  #020617;
+  --color-aero-navy:   #0F172A;
+  --color-aero-slate:  #334155;
+  --color-aero-red:    #EF4444; /* Safety Red */
+  --color-aero-green:  #10B981; /* Avionics Green */
+  --color-aero-amber:  #F59E0B; /* Caution Amber */
 
-  --font-sans: 'DM Sans', system-ui, sans-serif;
+  /* Sobreescribiendo SEI con la nueva marca */
+  --color-sei-50:  #f8fafc;
+  --color-sei-100: #e2e8f0;
+  --color-sei-400: #475569;
+  --color-sei-600: #1e293b;
+  --color-sei-800: #0f172a;
+  --color-sei-900: #020617;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'Roboto Mono', monospace;
 }
 
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
 
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-slate-950 text-slate-200 antialiased selection:bg-blue-500/30;
     font-family: var(--font-sans);
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(15, 23, 42, 0.9) 0, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(30, 41, 59, 0.4) 0, transparent 50%);
+    background-attachment: fixed;
   }
 
   :root {
-    --sei-primary: #0F6E56;
-    --sei-primary-light: #1D9E75;
-    --sei-danger: #dc2626;
-    --sei-warning: #d97706;
-    --sei-success: #16a34a;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+    --glass-background: rgba(15, 23, 42, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.1);
   }
 }
 
-/* Scrollbar delgado */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+@layer components {
+  .glass-panel {
+    @apply backdrop-blur-md border border-white/10;
+    background: var(--glass-background);
+  }
 
-/* Transiciones de página */
-.page-enter { animation: fadeSlideIn 0.18s ease-out; }
-@keyframes fadeSlideIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  .text-data {
+    font-family: var(--font-mono);
+    @apply tracking-tight uppercase;
+  }
+}
+
+/* Scrollbar Aero */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { 
+  background: rgba(255, 255, 255, 0.1); 
+  border-radius: 10px; 
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* Transiciones suaves */
+.page-enter { animation: aeroIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes aeroIn {
+  from { opacity: 0; transform: translateY(10px); scale: 0.98; }
+  to   { opacity: 1; transform: translateY(0); scale: 1; }
 }
