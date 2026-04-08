@@ -2,35 +2,177 @@ import { NavLink, useNavigate } from 'react-router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSyncStore } from '@/stores/sync.store'
 import { Rol } from '@/core/enums'
-import { cn } from '@/lib/utils'
 
-interface NavItem {
-  to: string; label: string
-  icon: React.ReactNode
-  roles?: Rol[]; badge?: number
-  group?: string
-}
+// ─── Iconos SVG inline ────────────────────────────────────────────────────────
 
-const Ico = ({ d }: { d: string }) => (
-  <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><path d={d}/></svg>
+const Icon = ({ path, path2 }: { path: string; path2?: string }) => (
+  <svg viewBox="0 0 20 20" width="15" height="15" fill="currentColor">
+    <path d={path}/>
+    {path2 && <path d={path2}/>}
+  </svg>
 )
 
 const ICONS = {
-  dashboard: "M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z",
-  vehicle:   "M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm7 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM3 4a1 1 0 00-1 1v8a1 1 0 001 1h.5a2.5 2.5 0 015 0h3a2.5 2.5 0 015 0H17a1 1 0 001-1V9.414a1 1 0 00-.293-.707l-3.414-3.414A1 1 0 0013.586 5H3zM10 7h3.586l2 2H10V7z",
-  clip:      "M9 2a1 1 0 000 2h2a1 1 0 100-2H9z M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z",
-  wrench:    "M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z",
-  box:       "M4 3a2 2 0 100 4h12a2 2 0 100-4H4zM3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z",
-  badge:     "M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z",
-  chart:     "M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z",
-  users:     "M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z",
+  dashboard:    "M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z",
+  vehicle:      "M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm7 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM3 4a1 1 0 00-1 1v8a1 1 0 001 1h.5a2.5 2.5 0 015 0h3a2.5 2.5 0 015 0H17a1 1 0 001-1V9.414a1 1 0 00-.293-.707l-3.414-3.414A1 1 0 0013.586 5H3z",
+  clipboard:    "M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z",
+  book:         "M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z",
+  wrench:       "M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z",
+  box:          "M4 3a2 2 0 100 4h12a2 2 0 100-4H4zM3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z",
+  certificate:  "M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z",
+  chart:        "M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z",
+  users:        "M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z",
+  shield:       "M9 2l1.09 3.26L13.5 4l-2.18 2.5L12.5 10 9 8.27 5.5 10l1.18-3.5L4.5 4l3.41 1.26L9 2z",
+  settings:     "M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947z",
+  ot:           "M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm1 4a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm0 4a1 1 0 011-1h4a1 1 0 110 2H6a1 1 0 01-1-1z",
 }
 
-const ROL_LABELS: Record<string, string> = {
-  jefe_nacional: 'Jefe Nacional', jefe_regional: 'Jefe Regional',
-  jefe_estacion: 'Jefe de Estación', bombero: 'Bombero / Maquinista',
-  odma: 'ODMA', dsna: 'DSNA',
+// ─── Definición de menús por rol ──────────────────────────────────────────────
+
+interface NavItem {
+  to:      string
+  label:   string
+  sublabel?: string
+  icon:    string
+  badge?:  number
 }
+
+interface NavGroup {
+  label?: string
+  items:  NavItem[]
+}
+
+function getNavGroups(rol: Rol, pendingCount: number): NavGroup[] {
+  switch (rol) {
+
+    // ── BOMBERO / MAQUINISTA ────────────────────────────────────────────────
+    case Rol.Bombero:
+      return [
+        {
+          items: [
+            { to: '/',                          label: 'Mi Turno',         sublabel: 'Estado del turno actual',    icon: ICONS.dashboard },
+            { to: '/inspecciones',              label: 'Inspección F0',    sublabel: 'Cambio de turno diario',     icon: ICONS.clipboard },
+            { to: '/libro-operacion',           label: 'Libro de Guardia', sublabel: 'Novedades del turno',        icon: ICONS.book },
+          ]
+        }
+      ]
+
+    // ── ODMA ────────────────────────────────────────────────────────────────
+    case Rol.ODMA:
+      return [
+        {
+          items: [
+            { to: '/',              label: 'Dashboard',        sublabel: 'Estado de la estación',       icon: ICONS.dashboard },
+            { to: '/inspecciones',  label: 'Inspecciones',     sublabel: 'F1 · F2 · F3',               icon: ICONS.clipboard },
+            { to: '/mantenimiento', label: 'Mis OTs',          sublabel: 'Órdenes asignadas',           icon: ICONS.ot,
+              badge: pendingCount > 0 ? pendingCount : undefined },
+            { to: '/repuestos',     label: 'Repuestos',        sublabel: 'Consulta de inventario',      icon: ICONS.box },
+          ]
+        }
+      ]
+
+    // ── JEFE DE ESTACIÓN ────────────────────────────────────────────────────
+    case Rol.JefeEstacion:
+      return [
+        {
+          items: [
+            { to: '/',              label: 'Dashboard',        sublabel: 'Estado operativo',            icon: ICONS.dashboard },
+            { to: '/vehiculos',     label: 'Flota MRE',        sublabel: 'Vehículos de la estación',    icon: ICONS.vehicle },
+            { to: '/inspecciones',  label: 'Inspecciones',     sublabel: 'Firmar y liberar al servicio',icon: ICONS.clipboard },
+            { to: '/mantenimiento', label: 'Mantenimiento',    sublabel: 'Órdenes de trabajo',          icon: ICONS.wrench,
+              badge: pendingCount > 0 ? pendingCount : undefined },
+            { to: '/repuestos',     label: 'Repuestos',        sublabel: 'Inventario y stock',          icon: ICONS.box },
+          ]
+        },
+        {
+          label: 'Personal',
+          items: [
+            { to: '/personal/certificaciones', label: 'Certificaciones', sublabel: 'TME del personal',  icon: ICONS.certificate },
+          ]
+        }
+      ]
+
+    // ── JEFE REGIONAL ───────────────────────────────────────────────────────
+    case Rol.JefeRegional:
+      return [
+        {
+          items: [
+            { to: '/',              label: 'Dashboard',        sublabel: 'Vista regional',              icon: ICONS.dashboard },
+            { to: '/vehiculos',     label: 'Flota MRE',        sublabel: 'Vehículos de la regional',    icon: ICONS.vehicle },
+            { to: '/mantenimiento', label: 'Mantenimiento',    sublabel: 'OTs de la regional',          icon: ICONS.wrench },
+          ]
+        },
+        {
+          label: 'Supervisión',
+          items: [
+            { to: '/reportes',                 label: 'Reportes / AVC',  sublabel: 'Análisis regional', icon: ICONS.chart },
+            { to: '/personal/certificaciones', label: 'Certificaciones', sublabel: 'Personal regional', icon: ICONS.certificate },
+          ]
+        }
+      ]
+
+    // ── JEFE NACIONAL ───────────────────────────────────────────────────────
+    case Rol.JefeNacional:
+      return [
+        {
+          items: [
+            { to: '/',              label: 'Centro de Mando',  sublabel: 'Vista nacional',              icon: ICONS.dashboard },
+            { to: '/vehiculos',     label: 'Flota MRE',        sublabel: 'Inventario nacional',         icon: ICONS.vehicle },
+            { to: '/mantenimiento', label: 'Mantenimiento',    sublabel: 'OTs activas',                 icon: ICONS.wrench },
+            { to: '/repuestos',     label: 'Repuestos',        sublabel: 'Inventario nacional',         icon: ICONS.box },
+          ]
+        },
+        {
+          label: 'Supervisión',
+          items: [
+            { to: '/reportes',                 label: 'Reportes / AVC',  sublabel: 'Cap. X · DSNA',     icon: ICONS.chart },
+            { to: '/personal/certificaciones', label: 'Certificaciones', sublabel: 'Cap. VII · TME',    icon: ICONS.certificate },
+          ]
+        },
+        {
+          label: 'Administración',
+          items: [
+            { to: '/admin/usuarios',    label: 'Usuarios',     sublabel: 'Gestión de accesos',          icon: ICONS.users },
+            { to: '/admin/checklists',  label: 'Checklists',   sublabel: 'F1 · F2 · F3',               icon: ICONS.settings },
+          ]
+        }
+      ]
+
+    // ── DSNA ────────────────────────────────────────────────────────────────
+    case Rol.DSNA:
+      return [
+        {
+          items: [
+            { to: '/',          label: 'Dashboard',        sublabel: 'Vista nacional',                  icon: ICONS.dashboard },
+            { to: '/vehiculos', label: 'Flota MRE',        sublabel: 'Solo lectura',                    icon: ICONS.vehicle },
+          ]
+        },
+        {
+          label: 'Auditoría',
+          items: [
+            { to: '/reportes',                 label: 'Reportes / AVC',  sublabel: 'Exportar · PDF',    icon: ICONS.chart },
+            { to: '/personal/certificaciones', label: 'Certificaciones', sublabel: 'TME nacional',      icon: ICONS.certificate },
+          ]
+        }
+      ]
+
+    default:
+      return [{ items: [{ to: '/', label: 'Dashboard', icon: ICONS.dashboard }] }]
+  }
+}
+
+// ─── Labels de rol ────────────────────────────────────────────────────────────
+
+const ROL_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  jefe_nacional:  { label: 'JEFE NACIONAL',   color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/30' },
+  jefe_regional:  { label: 'JEFE REGIONAL',   color: 'text-blue-400',    bg: 'bg-blue-500/10 border-blue-500/30' },
+  jefe_estacion:  { label: 'JEFE ESTACIÓN',   color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' },
+  bombero:        { label: 'BOMBERO',          color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/30' },
+  odma:           { label: 'ODMA',             color: 'text-purple-400',  bg: 'bg-purple-500/10 border-purple-500/30' },
+  dsna:           { label: 'DSNA',             color: 'text-slate-400',   bg: 'bg-slate-700/30 border-white/10' },
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function Sidebar() {
   const { usuario, clear } = useAuthStore()
@@ -39,38 +181,11 @@ export default function Sidebar() {
 
   if (!usuario) return null
 
-  const NAV_ITEMS: NavItem[] = [
-    { to: '/',                         label: 'Dashboard',          icon: <Ico d={ICONS.dashboard}/>, group: 'principal' },
-    { to: '/vehiculos',                label: 'Flota MRE',          icon: <Ico d={ICONS.vehicle}/>,   group: 'principal' },
-    { to: '/mantenimiento',            label: 'Mantenimiento',      icon: <Ico d={ICONS.wrench}/>,
-      badge: pendingCount > 0 ? pendingCount : undefined,           group: 'principal' },
-    { to: '/repuestos',                label: 'Repuestos',          icon: <Ico d={ICONS.box}/>,       group: 'principal' },
-    { to: '/personal/certificaciones', label: 'Certificaciones',    icon: <Ico d={ICONS.badge}/>,     group: 'personal' },
-    { to: '/reportes',                 label: 'Reportes / AVC',     icon: <Ico d={ICONS.chart}/>,
-      roles: [Rol.JefeNacional, Rol.JefeRegional, Rol.DSNA],       group: 'reportes' },
-    { to: '/admin/usuarios',           label: 'Usuarios',           icon: <Ico d={ICONS.users}/>,
-      roles: [Rol.JefeNacional],                                     group: 'admin' },
-    { to: '/admin/checklists',         label: 'Checklists',         icon: <Ico d={ICONS.clip}/>,
-      roles: [Rol.JefeNacional],                                     group: 'admin' },
-  ]
-
-  const visible = NAV_ITEMS.filter(i =>
-    !i.roles || i.roles.includes(usuario.rol as Rol)
-  )
-
-  const groups: Record<string, NavItem[]> = {}
-  for (const item of visible) {
-    const g = item.group ?? 'principal'
-    if (!groups[g]) groups[g] = []
-    groups[g].push(item)
-  }
-
-  const groupLabels: Record<string, string> = {
-    principal: '',
-    personal:  'Personal',
-    reportes:  'Reportes',
-    admin:     'Administración',
-  }
+  const rol        = usuario.rol as Rol
+  const rolConfig  = ROL_CONFIG[usuario.rol] ?? ROL_CONFIG.bombero
+  const navGroups  = getNavGroups(rol, pendingCount)
+  const initiales  = usuario.nombre_completo
+    .split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
 
   function handleLogout() {
     import('@/services/auth.service').then(({ authService }) => {
@@ -79,57 +194,85 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-slate-950/40 backdrop-blur-xl border-r border-white/5 shrink-0 relative z-50">
-      {/* Glow lateral decorativo */}
-      <div className="absolute right-0 top-0 w-[1px] h-full bg-gradient-to-b from-transparent via-blue-500/20 to-transparent" />
+    <aside className="hidden md:flex flex-col w-60 shrink-0
+                      bg-slate-950/95 border-r border-white/5 backdrop-blur-xl">
 
-      {/* Logo / Brand */}
-      <div className="flex items-center gap-3 px-6 py-8">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
-          <svg viewBox="0 0 20 20" width="20" height="20" fill="white">
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-4 py-4 border-b border-white/5">
+        <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center
+                        shadow-lg shadow-blue-600/30">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="white">
             <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm7 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM3 4a1 1 0 00-1 1v8a1 1 0 001 1h.5a2.5 2.5 0 015 0h3a2.5 2.5 0 015 0H17a1 1 0 001-1V9.414a1 1 0 00-.293-.707l-3.414-3.414A1 1 0 0013.586 5H3z"/>
           </svg>
         </div>
         <div>
-          <p className="text-sm font-bold text-white tracking-widest uppercase">SEITrack</p>
-          <p className="text-[10px] text-slate-500 font-mono tracking-tighter">MISSION CONTROL · v0.4</p>
+          <p className="text-sm font-bold text-white leading-none tracking-wide">SEITrack</p>
+          <p className="text-[9px] text-slate-500 leading-none mt-1 uppercase tracking-widest">
+            Mission Control · v0.4
+          </p>
         </div>
       </div>
 
-      {/* Nav por grupos */}
-      <nav className="flex-1 px-3 py-2 space-y-6 overflow-y-auto">
-        {Object.entries(groups).map(([group, items]) => (
-          <div key={group}>
-            {groupLabels[group] && (
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-4 mb-3 flex items-center gap-2">
-                <span className="w-1 h-1 rounded-full bg-blue-500" />
-                {groupLabels[group]}
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto
+                      scrollbar-thin scrollbar-thumb-white/10">
+        {navGroups.map((group, gi) => (
+          <div key={gi}>
+            {group.label && (
+              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest
+                           px-2 mb-2">
+                {group.label}
               </p>
             )}
-            <div className="space-y-1">
-              {items.map(item => (
+            <div className="space-y-0.5">
+              {group.items.map(item => (
                 <NavLink
                   key={item.to}
                   to={item.to}
                   end={item.to === '/'}
-                  className={({ isActive }) => cn(
-                    'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all relative group',
-                    isActive
-                      ? 'bg-blue-600/10 text-blue-400 font-semibold border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]'
-                      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                  )}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group ${
+                      isActive
+                        ? 'bg-blue-600/20 border border-blue-500/30 text-white'
+                        : 'text-slate-500 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+                    }`
+                  }
                 >
-                  <span className={cn(
-                    "transition-transform duration-300 group-hover:scale-110",
-                    "opacity-70 group-hover:opacity-100"
-                  )}>{item.icon}</span>
-                  <span className="flex-1 tracking-tight">{item.label}</span>
-                  {item.badge !== undefined && (
-                    <span className="text-[10px] font-bold bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30">
-                      {item.badge}
-                    </span>
+                  {({ isActive }) => (
+                    <>
+                      <span className={`shrink-0 transition-colors ${
+                        isActive ? 'text-blue-400' : 'text-slate-600 group-hover:text-slate-400'
+                      }`}>
+                        <Icon path={item.icon} />
+                      </span>
+
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-semibold leading-none ${
+                          isActive ? 'text-white' : ''
+                        }`}>
+                          {item.label}
+                        </p>
+                        {item.sublabel && (
+                          <p className="text-[9px] text-slate-600 mt-0.5 leading-none truncate
+                                       group-hover:text-slate-500 transition-colors">
+                            {item.sublabel}
+                          </p>
+                        )}
+                      </div>
+
+                      {item.badge !== undefined && (
+                        <span className="text-[9px] font-bold bg-amber-500/20 text-amber-400
+                                         border border-amber-500/30 px-1.5 py-0.5 rounded-full
+                                         font-mono shrink-0">
+                          {item.badge}
+                        </span>
+                      )}
+
+                      {isActive && (
+                        <div className="w-1 h-4 rounded-full bg-blue-400 shrink-0" />
+                      )}
+                    </>
                   )}
-                  {/* Indicador de activo */}
                 </NavLink>
               ))}
             </div>
@@ -137,30 +280,43 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Usuario / Terminal */}
-      <div className="p-4 border-t border-white/5 bg-slate-900/40">
-        <div className="bg-slate-950/50 rounded-xl p-3 border border-white/5 shadow-inner">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-slate-700 to-slate-800 flex items-center justify-center text-slate-200 text-xs font-bold border border-white/10">
-              {usuario.nombre_completo.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-slate-100 truncate">{usuario.nombre_completo}</p>
-              <p className="text-[10px] text-slate-500 font-mono truncate uppercase tracking-tighter">
-                {ROL_LABELS[usuario.rol] ?? usuario.rol}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all uppercase tracking-widest"
-          >
-            <svg viewBox="0 0 20 20" width="12" height="12" fill="currentColor">
-              <path d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z"/>
-            </svg>
-            Cerrar Terminal
-          </button>
+      {/* Usuario */}
+      <div className="border-t border-white/5 p-3 space-y-2">
+        {/* Rol badge */}
+        <div className={`flex items-center justify-center px-2 py-1 rounded-lg border
+                         text-[9px] font-bold uppercase tracking-widest ${rolConfig.bg} ${rolConfig.color}`}>
+          {rolConfig.label}
         </div>
+
+        {/* Info usuario */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-slate-800 border border-white/10
+                          flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+            {initiales}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-200 truncate leading-none">
+              {usuario.nombre_completo}
+            </p>
+            <p className="text-[9px] text-slate-600 truncate mt-0.5 leading-none">
+              {(usuario.estacion as any)?.codigo_iata ?? '—'} ·{' '}
+              {(usuario.estacion as any)?.nombre ?? '—'}
+            </p>
+          </div>
+        </div>
+
+        {/* Logout */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg
+                     text-[10px] text-slate-600 hover:text-red-400
+                     hover:bg-red-500/5 transition-all uppercase tracking-widest"
+        >
+          <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor">
+            <path fillRule="evenodd" d="M2 2.75C2 1.784 2.784 1 3.75 1h2.5a.75.75 0 010 1.5h-2.5a.25.25 0 00-.25.25v10.5c0 .138.112.25.25.25h2.5a.75.75 0 010 1.5h-2.5A1.75 1.75 0 012 13.25V2.75zm10.44 4.5H6.75a.75.75 0 000 1.5h5.69l-1.97 1.97a.75.75 0 101.06 1.06l3.25-3.25a.75.75 0 000-1.06l-3.25-3.25a.75.75 0 10-1.06 1.06l1.97 1.97z"/>
+          </svg>
+          Cerrar Terminal
+        </button>
       </div>
     </aside>
   )
