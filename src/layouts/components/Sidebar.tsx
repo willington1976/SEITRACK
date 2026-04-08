@@ -52,7 +52,7 @@ function getNavGroups(rol: Rol, pendingCount: number): NavGroup[] {
           items: [
             { to: '/',                          label: 'Mi Turno',         sublabel: 'Estado del turno actual',    icon: ICONS.dashboard },
             { to: '/inspecciones',              label: 'Inspección F0',    sublabel: 'Cambio de turno diario',     icon: ICONS.clipboard },
-            { to: '/libro-operacion',           label: 'Libro de Guardia', sublabel: 'Novedades del turno',        icon: ICONS.book },
+            { to: '/libro-operacion',           label: 'Libro de Operación', sublabel: 'Registro diario del turno',        icon: ICONS.book },
           ]
         }
       ]

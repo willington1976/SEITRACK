@@ -50,7 +50,7 @@ export const CHECKLIST_F0: Record<string, string[]> = {
 
 export const TURNOS = ['dia', 'tarde', 'noche'] as const
 export const TURNO_LABELS: Record<string, string> = {
-  dia: 'Día (06:00–14:00)',
+  dia: 'Mañana (06:00–14:00)',
   tarde: 'Tarde (14:00–22:00)',
   noche: 'Noche (22:00–06:00)',
 }

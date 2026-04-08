@@ -356,8 +356,8 @@ export default function InspeccionForm() {
             </svg>
           </button>
           <div>
-            <h1 className="text-sm font-semibold text-gray-900">{vehiculo.matricula}</h1>
-            <p className="text-xs text-gray-400">{vehiculo.modelo} · {vehiculo.programa_mto}</p>
+            <h1 className="text-lg font-bold font-mono text-white">{vehiculo.matricula}</h1>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide">{vehiculo.modelo} · {vehiculo.programa_mto}</p>
           </div>
         </div>
         <Badge variant="info">{FASE_LABELS[fase]}</Badge>
@@ -395,48 +395,48 @@ export default function InspeccionForm() {
       })()}
 
       {/* Datos del registro */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Datos del registro</p>
+      <div className="glass-panel rounded-2xl border border-white/5 p-4 space-y-3">
+        <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">Telemetry Input</p>
         <div className="grid grid-cols-3 gap-2">
           {/* Turno */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Turno</label>
+            <label className="block text-[9px] font-semibold text-slate-600 uppercase tracking-widest mb-1">Indicador Turno</label>
             <select
               value={turno}
               onChange={e => setTurno(e.target.value as typeof turno)}
-              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-sei-400"
+              className="w-full text-sm bg-slate-950 border border-white/5 rounded-xl px-3 py-2.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
             >
-              {Object.entries(TURNO_LABELS).map(([v, l]) => (
-                <option key={v} value={v}>{l.split(' ')[0]}</option>
-              ))}
+              <option value="dia">Mañana (06:00-14:00)</option>
+              <option value="tarde">Tarde (14:00-22:00)</option>
+              <option value="noche">Noche (22:00-06:00)</option>
             </select>
           </div>
           {/* KM */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Km actuales</label>
+            <label className="block text-[9px] font-semibold text-slate-600 uppercase tracking-widest mb-1">Odómetro KM</label>
             <input
               type="number"
               placeholder={String(vehiculo.kilometraje_actual)}
               value={km}
               onChange={e => setKm(e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-sei-400"
+              className="w-full text-sm bg-slate-950 border border-white/5 rounded-xl px-3 py-2.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-mono"
             />
           </div>
           {/* Horas */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Horas motor</label>
+            <label className="block text-[9px] font-semibold text-slate-600 uppercase tracking-widest mb-1">Engine Hours</label>
             <input
               type="number"
               placeholder={String(vehiculo.horas_motor)}
               value={horas}
               onChange={e => setHoras(e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-sei-400"
+              className="w-full text-sm bg-slate-950 border border-white/5 rounded-xl px-3 py-2.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500/30 font-mono"
             />
           </div>
         </div>
         {/* Obs general */}
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Observaciones generales</label>
+          <label className="block text-[9px] font-semibold text-slate-600 uppercase tracking-widest mb-1">Novedades especiales del turno</label>
           <textarea
             rows={2}
             placeholder="Sin novedades..."
