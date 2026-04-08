@@ -1,7 +1,5 @@
 import { useNavigate } from 'react-router'
 import { useNacionalStats } from '@/hooks/useReportes'
-import { Badge } from '@/components/ui/Badge'
-import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
 
@@ -22,101 +20,145 @@ export default function DashboardNacional() {
     ? Math.round((totales.operativos / totales.vehiculos) * 100) : 0
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-base font-semibold text-gray-900">Vista nacional</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
-          {formatDate(new Date())} · 6 regionales · 36 estaciones
-        </p>
+    <div className="relative space-y-6">
+      {/* Iluminación de fondo */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 blur-[100px] pointer-events-none" />
+
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-blue-400/70 mb-1">
+            Localización
+          </p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            CENTRO DE MANDO
+            <span className="ml-3 text-sm font-semibold bg-blue-500/20 text-blue-400
+                             border border-blue-500/30 px-2 py-0.5 rounded uppercase tracking-widest">
+              Nacional
+            </span>
+          </h1>
+          <p className="text-slate-400 text-xs mt-1">
+            Sincronizado: {formatDate(new Date())} · 6 regionales · 36 estaciones
+          </p>
+        </div>
+        <div className="flex items-center gap-2 glass-panel px-3 py-1.5 rounded-xl">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-emerald-400 text-xs font-semibold tracking-wide">SISTEMA OPERATIVO</span>
+        </div>
       </div>
 
       {/* KPIs nacionales */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Flota total',      value: isLoading ? '—' : String(totales?.vehiculos ?? 0),  color: 'text-gray-900' },
-          { label: 'Operativos',       value: isLoading ? '—' : String(totales?.operativos ?? 0), color: 'text-green-600' },
-          { label: 'En mantenimiento', value: isLoading ? '—' : String(totales?.en_manto ?? 0),   color: 'text-amber-600' },
-          { label: 'Disponibilidad',   value: isLoading ? '—' : `${disponibilidad}%`,
-            color: disponibilidad >= 80 ? 'text-green-600' : 'text-red-600' },
+          { label: 'Flota Total',       value: isLoading ? '—' : String(totales?.vehiculos ?? 0),
+            sub: 'MRE registradas', color: 'text-white', icon: '🚒' },
+          { label: 'Operativos',        value: isLoading ? '—' : String(totales?.operativos ?? 0),
+            sub: 'en servicio', color: 'text-emerald-400', icon: '✓' },
+          { label: 'En Mantenimiento',  value: isLoading ? '—' : String(totales?.en_manto ?? 0),
+            sub: 'en taller', color: 'text-amber-400', icon: '⚙' },
+          { label: 'Disponibilidad',    value: isLoading ? '—' : `${disponibilidad}%`,
+            sub: 'flota operativa', icon: '📡',
+            color: disponibilidad >= 80 ? 'text-emerald-400' : 'text-red-400' },
         ].map(m => (
-          <div key={m.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-            <p className={`text-2xl font-semibold ${m.color}`}>{m.value}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{m.label}</p>
+          <div key={m.label}
+            className="glass-panel rounded-2xl p-4 border border-white/5
+                       hover:border-white/10 transition-all">
+            <p className="text-[9px] font-semibold tracking-widest uppercase text-slate-500 mb-2">
+              {m.label}
+            </p>
+            <p className={`text-3xl font-bold font-mono ${m.color}`}>{m.value}</p>
+            <p className="text-[10px] text-slate-500 mt-1">{m.sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Tabla regionales — ahora clickeables */}
-      <Card padding={false}>
-        <div className="px-5 pt-4 pb-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="text-sm font-semibold text-gray-900">Estado por regional</p>
-          <p className="text-xs text-gray-400">Clic para ver detalle</p>
+      {/* Tabla regionales */}
+      <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+          <div>
+            <p className="text-[9px] font-semibold tracking-widest uppercase text-slate-500 mb-0.5">
+              Módulo de supervisión
+            </p>
+            <p className="text-sm font-semibold text-white">Estado por Regional</p>
+          </div>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+            Clic para inspeccionar →
+          </p>
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-10"><Spinner /></div>
+          <div className="flex justify-center py-12"><Spinner /></div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-white/5">
             {stats?.map(r => {
               const disp = Number(r.total_vehiculos) > 0
                 ? Math.round((Number(r.operativos) / Number(r.total_vehiculos)) * 100) : 0
-              const tieneAlertas = Number(r.ots_abiertas) > 0 || Number(r.fuera_servicio) > 0
+              const dispColor = disp >= 80 ? 'text-emerald-400' : disp >= 50 ? 'text-amber-400' : 'text-red-400'
+              const barColor  = disp >= 80 ? 'bg-emerald-500' : disp >= 50 ? 'bg-amber-500' : 'bg-red-500'
 
               return (
-                <button
-                  key={r.id}
-                  onClick={() => navigate(`/regional/${r.id}`)}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-sei-50/50
-                             transition-colors text-left group"
-                >
-                  {/* Código regional */}
-                  <div className="w-9 h-9 rounded-lg bg-sei-50 group-hover:bg-sei-100
-                                  flex items-center justify-center shrink-0 transition-colors">
-                    <span className="text-[10px] font-bold text-sei-700">{r.codigo}</span>
+                <button key={r.id} onClick={() => navigate(`/regional/${r.id}`)}
+                  className="w-full flex items-center gap-4 px-5 py-4
+                             hover:bg-blue-500/5 transition-all group text-left">
+
+                  {/* Código */}
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20
+                                  flex items-center justify-center shrink-0
+                                  group-hover:bg-blue-500/20 transition-all">
+                    <span className="text-[9px] font-bold text-blue-400 tracking-widest">{r.codigo}</span>
                   </div>
 
-                  {/* Nombre y stats */}
+                  {/* Nombre */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate group-hover:text-sei-700 transition-colors">
+                    <p className="text-sm font-semibold text-slate-200 group-hover:text-white transition-colors truncate">
                       {r.nombre}
                     </p>
-                    <p className="text-[11px] text-gray-400">
-                      {r.total_estaciones} estaciones · {r.total_vehiculos} MRE
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      {r.total_estaciones} ESTACIONES · {r.total_vehiculos} MRE
                     </p>
                   </div>
 
-                  {/* Badges estado */}
-                  <div className="hidden sm:flex items-center gap-1.5">
-                    <Badge variant="success">{r.operativos} op.</Badge>
-                    {Number(r.en_manto) > 0      && <Badge variant="warning">{r.en_manto} mto.</Badge>}
-                    {Number(r.fuera_servicio) > 0 && <Badge variant="danger">{r.fuera_servicio} fs.</Badge>}
-                  </div>
-
-                  {/* Disponibilidad */}
-                  <div className="text-right shrink-0">
-                    <p className={`text-xs font-semibold ${disp >= 80 ? 'text-green-600' : 'text-red-600'}`}>
-                      {disp}%
-                    </p>
-                    <p className="text-[11px] text-gray-400">disponib.</p>
+                  {/* Barra disponibilidad */}
+                  <div className="hidden md:block w-32">
+                    <div className="flex justify-between text-[9px] mb-1">
+                      <span className="text-slate-500 uppercase tracking-wider">RADAR</span>
+                      <span className={`font-mono font-bold ${dispColor}`}>{disp}%</span>
+                    </div>
+                    <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${barColor}`}
+                           style={{ width: `${disp}%` }}/>
+                    </div>
                   </div>
 
                   {/* Alertas */}
-                  <div className="flex gap-1 shrink-0">
-                    {Number(r.ots_abiertas) > 0 && (
-                      <span className="text-[10px] font-semibold bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">
-                        {r.ots_abiertas} OT
+                  <div className="flex gap-1.5 shrink-0">
+                    {Number(r.operativos) > 0 && (
+                      <span className="text-[9px] font-bold bg-emerald-500/10 text-emerald-400
+                                       border border-emerald-500/20 px-2 py-1 rounded-lg
+                                       font-mono tracking-wide">
+                        {r.operativos} OP
                       </span>
                     )}
-                    {Number(r.inspecciones_hoy) > 0 && (
-                      <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
-                        {r.inspecciones_hoy} insp.
+                    {Number(r.en_manto) > 0 && (
+                      <span className="text-[9px] font-bold bg-amber-500/10 text-amber-400
+                                       border border-amber-500/20 px-2 py-1 rounded-lg
+                                       font-mono tracking-wide">
+                        {r.en_manto} MTO
+                      </span>
+                    )}
+                    {Number(r.ots_abiertas) > 0 && (
+                      <span className="text-[9px] font-bold bg-red-500/10 text-red-400
+                                       border border-red-500/20 px-2 py-1 rounded-lg
+                                       font-mono tracking-wide">
+                        {r.ots_abiertas} OT
                       </span>
                     )}
                   </div>
 
-                  {/* Flecha navegación */}
+                  {/* Flecha */}
                   <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"
-                    className="text-gray-300 group-hover:text-sei-500 shrink-0 transition-colors">
+                    className="text-slate-600 group-hover:text-blue-400 shrink-0 transition-colors">
                     <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 011.06 0l3.25 3.25a.75.75 0 010 1.06l-3.25 3.25a.75.75 0 01-1.06-1.06L9 8.06 6.22 5.28a.75.75 0 010-1.06z"/>
                   </svg>
                 </button>
@@ -124,11 +166,16 @@ export default function DashboardNacional() {
             })}
           </div>
         )}
-      </Card>
 
-      <p className="text-[11px] text-gray-400 text-right">
-        Datos en tiempo real · refresca automáticamente cada 2 min
-      </p>
+        <div className="px-5 py-3 border-t border-white/5 flex justify-between items-center">
+          <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono">
+            Telemetry Node: 0xF29A-BC
+          </p>
+          <p className="text-[9px] text-slate-600 uppercase tracking-widest">
+            Refresco automático: 120s
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
