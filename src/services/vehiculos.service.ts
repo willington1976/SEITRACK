@@ -1,27 +1,37 @@
 import { supabase } from './supabase'
-import { db, } from '@/db/dexie'
+import { db } from '@/db/dexie'
 import { enqueue } from '@/db/sync-queue'
 import type { Vehiculo } from '@/core/types'
 
 export const vehiculosService = {
-  async getByEstacion(estacion_id: string): Promise<Vehiculo[]> {
-    // Intenta red primero, cae a cache local
+  // estacion_id = null → trae todos (jefe nacional)
+  // estacion_id = uuid → filtra por estación
+  async getByScope(estacion_id: string | null): Promise<Vehiculo[]> {
     try {
-      const { data, error } = await supabase
+      let q = supabase
         .from('vehiculos')
-        .select('*, estacion:estaciones(nombre, codigo_iata)')
-        .eq('estacion_id', estacion_id)
+        .select('*, estacion:estaciones(nombre, codigo_iata, ciudad)')
         .order('matricula')
 
+      if (estacion_id) {
+        q = q.eq('estacion_id', estacion_id)
+      }
+
+      const { data, error } = await q
       if (error) throw error
 
-      // Actualizar cache local
       await db.vehiculos.bulkPut(data as Vehiculo[])
       return data as Vehiculo[]
     } catch {
-      // Fallback a IndexedDB
+      // Fallback local — si es nacional muestra todos los cacheados
+      if (!estacion_id) return db.vehiculos.toArray()
       return db.vehiculos.where('estacion_id').equals(estacion_id).toArray()
     }
+  },
+
+  // Mantener compatibilidad con código que usa getByEstacion
+  async getByEstacion(estacion_id: string): Promise<Vehiculo[]> {
+    return vehiculosService.getByScope(estacion_id)
   },
 
   async getById(id: string): Promise<Vehiculo | null> {

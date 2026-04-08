@@ -1,14 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { mantenimientoService } from '@/services/mantenimiento.service'
-import { useAuthStore } from '@/stores/auth.store'
+import { useScope } from '@/hooks/useScope'
 import { QUERY_KEYS } from '@/lib/constants'
 
-export function useOrdenesAbiertas() {
-  const estacionId = useAuthStore(s => s.usuario?.estacion_id)
+export function useOrdenesAbiertas(estacionIdOverride?: string | null) {
+  const { estacionId } = useScope()
+  const filtro = estacionIdOverride !== undefined ? estacionIdOverride : estacionId
+
   return useQuery({
-    queryKey: ['ordenes', 'abiertas', estacionId],
-    queryFn:  () => mantenimientoService.getOrdenesAbiertas(estacionId!),
-    enabled:  !!estacionId,
+    queryKey: ['ordenes', 'abiertas', filtro ?? 'nacional'],
+    queryFn:  () => mantenimientoService.getOrdenesAbiertas(filtro),
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
   })
 }
 

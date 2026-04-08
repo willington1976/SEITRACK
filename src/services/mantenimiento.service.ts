@@ -22,14 +22,23 @@ export const mantenimientoService = {
     }
   },
 
-  async getOrdenesAbiertas(estacion_id: string): Promise<OrdenTrabajo[]> {
+  // estacion_id = null → todas las OTs del país (jefe nacional)
+  async getOrdenesAbiertas(estacion_id: string | null): Promise<OrdenTrabajo[]> {
     try {
-      const { data, error } = await supabase
+      let q = supabase
         .from('ordenes_trabajo')
-        .select('*, vehiculo:vehiculos!inner(matricula, modelo, estacion_id)')
-        .eq('vehiculo.estacion_id', estacion_id)
+        .select(\`*,
+          vehiculo:vehiculos!inner(matricula, modelo, estacion_id,
+            estacion:estaciones(nombre, codigo_iata))
+        \`)
         .in('estado', ['abierta', 'en_proceso'])
         .order('created_at', { ascending: false })
+
+      if (estacion_id) {
+        q = q.eq('vehiculo.estacion_id', estacion_id)
+      }
+
+      const { data, error } = await q
       if (error) throw error
       return data as OrdenTrabajo[]
     } catch {
