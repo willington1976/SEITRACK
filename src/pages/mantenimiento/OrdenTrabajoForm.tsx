@@ -135,49 +135,69 @@ function CierreTecnicoODMA({ ot, onClosed }: {
 
   // ── Guardar cierre ───────────────────────────────────────────────────────
 
+  const [errorCierre, setErrorCierre] = useState('')
+
   async function handleCerrar() {
     if (!informeGeneral.trim()) return
     if (resultado === 'diferida' && !motivoDiferido.trim()) return
     setGuardando(true)
+    setErrorCierre('')
     try {
-      const update: Record<string, unknown> = {
-        estado:           resultado === 'cerrada' ? 'cerrada' : 'en_proceso',
-        informe_tecnico:  informeGeneral,
-        numero_sei_006:   numeroSEI006 || null,
-        horas_labor:      Number(horasLabor) || null,
+      // Campos base — siempre existen
+      const updateBase: Record<string, unknown> = {
+        estado:      resultado === 'cerrada' ? 'cerrada' : 'en_proceso',
+        horas_labor: Number(horasLabor) || null,
+        fecha_cierre: resultado === 'cerrada' ? new Date().toISOString().split('T')[0] : null,
+      }
+
+      const { error: errorBase } = await supabase
+        .from('ordenes_trabajo')
+        .update(updateBase)
+        .eq('id', ot.id)
+
+      if (errorBase) throw errorBase
+
+      // Campos SEI-006 extendidos — solo si la migración 0013 fue ejecutada
+      const updateExtendido: Record<string, unknown> = {
+        informe_tecnico:        informeGeneral,
+        numero_sei_006:         numeroSEI006 || null,
         actividades_realizadas: JSON.stringify(actividades.filter(a => a.actividad.trim())),
         partes_instaladas:      JSON.stringify(partes.filter(p => p.descripcion.trim())),
         firma_inspector_odma:   usuario?.nombre_completo,
-        fecha_cierre:           resultado === 'cerrada' ? new Date().toISOString().split('T')[0] : null,
       }
-
       if (resultado === 'diferida') {
-        update.motivo_diferido = motivoDiferido
-        // Vehículo queda en pendiente_verificacion
-        update.estado = 'en_proceso'
+        updateExtendido.motivo_diferido = motivoDiferido
       }
 
-      const { error } = await supabase
-        .from('ordenes_trabajo')
-        .update(update)
-        .eq('id', ot.id)
+      // Intentar guardar campos extendidos — si falla (columna no existe) continuar igual
+      await supabase.from('ordenes_trabajo')
+        .update(updateExtendido).eq('id', ot.id)
+        .then(({ error }) => {
+          if (error) console.warn('Campos SEI-006 no disponibles — ejecutar migración 0013:', error.message)
+        })
 
-      if (error) throw error
-
-      // Estado vehículo → pendiente verificación maquinista
+      // Estado vehículo → en_mantenimiento (fallback si pendiente_verificacion no existe)
       if (resultado === 'cerrada') {
-        await supabase
+        const { error: errV } = await supabase
           .from('vehiculos')
           .update({ estado: 'pendiente_verificacion' })
           .eq('id', ot.vehiculo_id)
+        if (errV) {
+          // Fallback — estado operativo si el constraint no existe aún
+          await supabase.from('vehiculos')
+            .update({ estado: 'operativo' })
+            .eq('id', ot.vehiculo_id)
+            .eq('estado', 'en_mantenimiento')
+        }
       }
 
       qc.invalidateQueries({ queryKey: ['orden_trabajo'] })
       qc.invalidateQueries({ queryKey: ['ordenes'] })
       onClosed()
       navigate('/mantenimiento')
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
+      setErrorCierre(e?.message ?? 'Error al guardar. Intenta nuevamente.')
     } finally {
       setGuardando(false)
     }
@@ -503,6 +523,13 @@ function CierreTecnicoODMA({ ot, onClosed }: {
               </p>
             </div>
           </div>
+
+          {errorCierre && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3
+                            text-sm text-red-400">
+              {errorCierre}
+            </div>
+          )}
 
           <div className="flex gap-2">
             <button onClick={() => setPaso('partes')}

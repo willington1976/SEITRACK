@@ -1,4 +1,6 @@
 import { NavLink, useNavigate } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/services/supabase'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSyncStore } from '@/stores/sync.store'
 import { Rol } from '@/core/enums'
@@ -42,7 +44,7 @@ interface NavGroup {
   items:  NavItem[]
 }
 
-function getNavGroups(rol: Rol, pendingCount: number): NavGroup[] {
+function getNavGroups(rol: Rol, pendingCount: number, pendingRecibo: number = 0): NavGroup[] {
   switch (rol) {
 
     // ── BOMBERO / MAQUINISTA ────────────────────────────────────────────────
@@ -50,9 +52,13 @@ function getNavGroups(rol: Rol, pendingCount: number): NavGroup[] {
       return [
         {
           items: [
-            { to: '/',                          label: 'Mi Turno',         sublabel: 'Estado del turno actual',    icon: ICONS.dashboard },
-            { to: '/inspecciones',              label: 'Inspección F0',    sublabel: 'Cambio de turno diario',     icon: ICONS.clipboard },
-            { to: '/libro-operacion',           label: 'Libro de Operación', sublabel: 'Registro diario del turno',        icon: ICONS.book },
+            { to: '/',                     label: 'Mi Turno',           sublabel: 'Estado del turno actual',  icon: ICONS.dashboard },
+            { to: '/inspecciones',         label: 'Inspección F0',      sublabel: 'Cambio de turno diario',   icon: ICONS.clipboard },
+            { to: '/libro-operacion',      label: 'Libro de Operación', sublabel: 'Registro diario del turno',icon: ICONS.book },
+            ...(pendingRecibo > 0 ? [{
+              to: '/inspeccion-recibo',    label: 'Verificar Recibo',   sublabel: 'ODMA completó trabajo',    icon: ICONS.wrench,
+              badge: pendingRecibo
+            }] : []),
           ]
         }
       ]
@@ -179,11 +185,29 @@ export default function Sidebar() {
   const { pendingCount }   = useSyncStore()
   const navigate           = useNavigate()
 
+  // Badge dinámico recibo pendiente — solo para Bombero
+  const { data: vehiculosPendientes } = useQuery({
+    queryKey: ['recibo', 'badge', usuario?.estacion_id],
+    queryFn: async () => {
+      if (!usuario?.estacion_id) return []
+      const { data } = await supabase
+        .from('vehiculos')
+        .select('id')
+        .eq('estado', 'pendiente_verificacion')
+        .eq('estacion_id', usuario.estacion_id)
+      return data ?? []
+    },
+    enabled: usuario?.rol === 'bombero',
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
+  })
+  const reciboPendiente = vehiculosPendientes?.length ?? 0
+
   if (!usuario) return null
 
   const rol        = usuario.rol as Rol
   const rolConfig  = ROL_CONFIG[usuario.rol] ?? ROL_CONFIG.bombero
-  const navGroups  = getNavGroups(rol, pendingCount)
+  const navGroups  = getNavGroups(rol, pendingCount, reciboPendiente)
   const initiales  = usuario.nombre_completo
     .split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
 
