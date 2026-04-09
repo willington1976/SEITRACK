@@ -274,8 +274,9 @@ export default function VehiculosList() {
 
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
+  const esRegional = usuario?.rol === Rol.JefeRegional
   const [modoVista,    setModoVista]    = useState<'agrupado' | 'grilla'>(
-    esNacional ? 'agrupado' : 'grilla'
+    (esNacional || esRegional) ? 'agrupado' : 'grilla'
   )
   const [filtroEstacionSel, setFiltroEstacionSel] = useState<string | null>(null)
 
@@ -328,8 +329,8 @@ export default function VehiculosList() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* Toggle vista — solo para nacional */}
-          {esNacional && (
+          {/* Toggle vista — nacional y regional */}
+          {(esNacional || esRegional) && (
             <div className="flex gap-1 bg-slate-950 border border-white/5 rounded-xl p-1">
               {[
                 { v: 'agrupado', icon: '▤', label: 'AGRUPADO' },
@@ -390,8 +391,8 @@ export default function VehiculosList() {
                        focus:outline-none focus:ring-1 focus:ring-blue-500/30"/>
         </div>
 
-        {/* Filtro estación — solo en modo grilla nacional */}
-        {esNacional && modoVista === 'grilla' && (
+        {/* Filtro estación — modo grilla para nacional y regional */}
+        {(esNacional || esRegional) && modoVista === 'grilla' && (
           <select value={filtroEstacionSel ?? ''}
             onChange={e => setFiltroEstacionSel(e.target.value || null)}
             className="bg-slate-950 border border-white/5 rounded-xl px-3 py-2.5 text-sm
@@ -433,7 +434,7 @@ export default function VehiculosList() {
             No se encontraron registros
           </p>
         </div>
-      ) : esNacional && modoVista === 'agrupado' ? (
+      ) : (esNacional || esRegional) && modoVista === 'agrupado' ? (
         <VistaAgrupada vehiculos={filtrados} />
       ) : (
         <VistaPlana vehiculos={filtrados} />

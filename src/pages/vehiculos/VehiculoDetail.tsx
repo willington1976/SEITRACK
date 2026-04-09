@@ -1,137 +1,157 @@
 import { useParams, Link, useNavigate } from 'react-router'
 import { useVehiculo } from '@/hooks/useVehiculos'
+import { Card, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { formatDate, formatKm, formatHoras, cn } from '@/lib/utils'
-import { EstadoVehiculo } from '@/core/enums'
+import { formatDate, formatKm, formatHoras } from '@/lib/utils'
+import { EstadoVehiculo, Rol } from '@/core/enums'
+import { useAuthStore } from '@/stores/auth.store'
 
 const estadoBadge = {
-  [EstadoVehiculo.Operativo]:       { v: 'success' as const, l: 'OPERATIVO', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-  [EstadoVehiculo.EnMantenimiento]: { v: 'warning' as const, l: 'EN MANTENIMIENTO', color: 'text-amber-500',   bg: 'bg-amber-500/10' },
-  [EstadoVehiculo.FueraDeServicio]: { v: 'danger'  as const, l: 'FUERA DE SERVICIO', color: 'text-red-500',     bg: 'bg-red-500/10' },
-  [EstadoVehiculo.Inspeccion]:      { v: 'info'    as const, l: 'EN INSPECCIÓN', color: 'text-blue-400',    bg: 'bg-blue-400/10' },
+  [EstadoVehiculo.Operativo]:       { v: 'success' as const, l: 'Operativo' },
+  [EstadoVehiculo.EnMantenimiento]: { v: 'warning' as const, l: 'En mantenimiento' },
+  [EstadoVehiculo.FueraDeServicio]: { v: 'danger'  as const, l: 'Fuera de servicio' },
+  [EstadoVehiculo.Inspeccion]:      { v: 'info'    as const, l: 'En inspección' },
 }
 
 export default function VehiculoDetail() {
   const { vehiculoId } = useParams<{ vehiculoId: string }>()
   const { data: v, isLoading } = useVehiculo(vehiculoId!)
   const navigate = useNavigate()
+  const usuario  = useAuthStore(s => s.usuario)
+  const rol      = usuario?.rol as Rol
 
-  if (isLoading) return <div className="flex flex-col items-center justify-center py-20 gap-4"><Spinner size="lg" /><p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Sincronizando Archivos de Flota...</p></div>
+  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>
   if (!v) return (
-    <div className="text-center py-24 glass-panel rounded-3xl">
-      <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Unidad no detectada en el Registro Nacional</p>
-      <button onClick={() => navigate(-1)} className="mt-4 px-6 py-2 bg-slate-900 border border-white/5 text-white text-[10px] font-bold rounded-xl hover:bg-white/5 transition-all">REINTENTAR ACCESO</button>
+    <div className="text-center py-16">
+      <p className="text-gray-400 text-sm">Vehículo no encontrado</p>
+      <button onClick={() => navigate(-1)} className="mt-2 text-sei-600 text-sm hover:underline">Volver</button>
     </div>
   )
 
-  const b = estadoBadge[v.estado as EstadoVehiculo] || estadoBadge[EstadoVehiculo.Operativo]
+  const b = estadoBadge[v.estado as EstadoVehiculo]
 
   return (
-    <div className="space-y-8 page-enter">
-      {/* Flight Deck Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="flex items-center gap-6">
-          <button onClick={() => navigate(-1)} className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/5 flex items-center justify-center hover:bg-white/5 transition-all group">
-            <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" className="text-slate-500 group-hover:text-white transition-colors">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" className="text-gray-400">
               <path fillRule="evenodd" d="M9.78 4.22a.75.75 0 01 0 1.06L7.06 8l2.72 2.72a.75.75 0 11-1.06 1.06L5.47 8.53a.75.75 0 010-1.06l3.25-3.25a.75.75 0 011.06 0z" clipRule="evenodd"/>
             </svg>
           </button>
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-white tracking-tighter uppercase">{v.matricula}</h1>
-              <Badge variant={b.v} className={cn("px-3 py-1 rounded-lg font-bold text-[9px] tracking-widest border-none", b.color, b.bg)}>
-                {b.l}
-              </Badge>
+            <h1 className="text-lg font-semibold text-gray-900">{v.matricula}</h1>
+            <p className="text-sm text-gray-400">{v.modelo} · {v.anio}</p>
+          </div>
+        </div>
+        <Badge variant={b.v}>{b.l}</Badge>
+      </div>
+
+      {/* Info básica */}
+      <Card>
+        <CardHeader title="Datos del vehículo" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+          {[
+            ['Matrícula',     v.matricula],
+            ['N° de serie',   v.numero_serie],
+            ['Marca',         v.marca],
+            ['Modelo',        v.modelo],
+            ['Año',           String(v.anio)],
+            ['Adquisición',   formatDate(v.fecha_adquisicion)],
+            ['Kilometraje',   formatKm(v.kilometraje_actual)],
+            ['Horas motor',   formatHoras(v.horas_motor)],
+            ['Programa MTO',  v.programa_mto],
+          ].map(([label, val]) => (
+            <div key={label}>
+              <p className="text-xs text-gray-400">{label}</p>
+              <p className="font-medium text-gray-800 mt-0.5">{val}</p>
             </div>
-            <p className="text-[11px] text-slate-500 font-mono uppercase tracking-[.25em] mt-1 italic">
-               {v.marca || 'UNKNOWN'} {v.modelo || 'UNIT'} · {v.anio || 'XXXX'} S/N: {v.numero_serie || 'N/A'}
-            </p>
+          ))}
+        </div>
+      </Card>
+
+      {/* Acciones — filtradas por rol */}
+      {(() => {
+        const puedeInspeccionar = [Rol.Bombero, Rol.JefeEstacion, Rol.ODMA].includes(rol)
+        const puedeVerInspecciones = rol !== Rol.Bombero
+        const puedeCrearOT = [Rol.JefeEstacion, Rol.JefeNacional, Rol.ODMA].includes(rol)
+        const puedeLibro = [Rol.Bombero, Rol.JefeEstacion].includes(rol)
+
+        const acciones = [
+          puedeInspeccionar && {
+            to: `/vehiculos/${v.id}/inspecciones/nueva`,
+            label: 'Nueva Inspección',
+            primary: true,
+          },
+          puedeVerInspecciones && {
+            to: `/vehiculos/${v.id}/inspecciones`,
+            label: 'Historial Inspección',
+            primary: false,
+          },
+          puedeCrearOT && {
+            to: `/mantenimiento/nueva`,
+            label: 'Abrir Orden de Trabajo',
+            primary: false,
+          },
+          puedeLibro && {
+            to: `/vehiculos/${v.id}/libro`,
+            label: 'Bitácora de Operación',
+            primary: false,
+          },
+          {
+            to: `#`,
+            label: 'Exportar Dossier PDF',
+            primary: false,
+            disabled: true,
+          },
+        ].filter(Boolean) as { to: string; label: string; primary: boolean; disabled?: boolean }[]
+
+        return (
+          <div className="flex flex-col gap-2">
+            {acciones.map(a => (
+              a.disabled ? (
+                <button key={a.label} disabled
+                  className="w-full text-center text-xs font-bold py-3 px-4 rounded-xl
+                             border border-white/5 text-slate-600 uppercase tracking-widest
+                             cursor-not-allowed">
+                  {a.label}
+                </button>
+              ) : (
+                <Link key={a.label} to={a.to}
+                  className={`w-full text-center text-xs font-bold py-3 px-4 rounded-xl
+                             transition-all uppercase tracking-widest ${
+                    a.primary
+                      ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20'
+                      : 'glass-panel border border-white/10 text-slate-300 hover:text-white hover:border-white/20'
+                  }`}>
+                  {a.label}
+                </Link>
+              )
+            ))}
           </div>
-        </div>
-      </div>
+        )
+      })()}
 
-      {/* Main Stats Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass-panel rounded-3xl p-8">
-           <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4">
-             <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-             <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">Especificaciones de Planta</p>
-           </div>
-           
-           <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-8 gap-x-4">
-            {[
-              { l: 'PLACA / MATRÍCULA', v: v.matricula, mono: true },
-              { l: 'NÚMERO DE SERIE / VIN', v: v.numero_serie, mono: true, color: 'text-blue-400' },
-              { l: 'MARCA DEL FABRICANTE', v: v.marca },
-              { l: 'MODELO DE REFERENCIA', v: v.modelo },
-              { l: 'AÑO DE PRODUCCIÓN', v: String(v.anio) },
-              { l: 'FECHA DE ADQUISICIÓN', v: formatDate(v.fecha_adquisicion) },
-              { l: 'ODÓMETRO TOTAL', v: formatKm(v.kilometraje_actual), mono: true, color: 'text-indigo-400' },
-              { l: 'HORAS DE MOTOR', v: formatHoras(v.horas_motor), mono: true, color: 'text-indigo-400' },
-              { l: 'PROGRAMA DE MTO', v: v.programa_mto || 'NOMINAL', mono: true },
-            ].map(i => (
-              <div key={i.l} className="space-y-1">
-                <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{i.l}</p>
-                <p className={cn("text-[13px] font-bold uppercase tracking-tight", i.mono ? "font-mono" : "text-slate-100", i.color || "text-slate-100")}>{i.v || '—'}</p>
-              </div>
-            ))}
-           </div>
-        </div>
-
-        {/* Tactical Actions Card */}
-        <div className="glass-panel rounded-3xl p-8 bg-blue-600/5 border-blue-600/10">
-           <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4">
-             <div className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
-             <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">Protocolos de Operatividad</p>
-           </div>
-           
-           <div className="flex flex-col gap-3">
-            {[
-              { to: `/vehiculos/${v.id}/inspecciones/nueva`, l: 'Nueva Inspección', primary: true },
-              { to: `/vehiculos/${v.id}/inspecciones`,       l: 'Historial Inspección' },
-              { to: `/mantenimiento/nueva`,                  l: 'Abrir Orden de Trabajo' },
-              { to: `/vehiculos/${v.id}/libro`,              l: 'Bitácora de Operación' },
-            ].map(a => (
-              <Link key={a.l} to={a.to} className={cn("w-full py-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all text-center border", a.primary ? "bg-blue-600 text-white border-white/10 shadow-xl shadow-blue-600/20 hover:bg-blue-500" : "bg-slate-900 text-slate-400 border-white/5 hover:border-blue-600/30 hover:text-white")}>
-                {a.l}
-              </Link>
-            ))}
-            <button 
-              onClick={() => exportarHistorialPDF(v, [], [], 'ADMIN')} 
-              className="w-full mt-4 py-3 bg-slate-950/50 border border-slate-800 text-slate-600 rounded-xl text-[9px] font-bold uppercase tracking-[.25em] hover:text-white hover:border-white/10 transition-all"
-            >
-              Exportar Dossier PDF
-            </button>
-           </div>
-        </div>
-      </div>
-
-      {/* Components Sub-System List */}
+      {/* Componentes */}
       {v.componentes && v.componentes.length > 0 && (
-        <div className="glass-panel rounded-3xl overflow-hidden">
-          <div className="px-8 py-5 border-b border-white/5 bg-white/5 flex items-center justify-between">
-             <div>
-               <h2 className="text-sm font-bold text-white uppercase tracking-tight">Anatomía de Componentes Críticos</h2>
-               <p className="text-[9px] text-slate-500 font-mono uppercase tracking-[.25em] mt-1">{v.componentes.length} SUBSISTEMAS MONITOREADOS</p>
-             </div>
-          </div>
-          <div className="divide-y divide-white/5">
+        <Card>
+          <CardHeader title="Componentes registrados" subtitle={`${v.componentes.length} componentes`} />
+          <div className="space-y-2">
             {v.componentes.map(c => (
-              <div key={c.id} className="flex items-center justify-between px-8 py-4 hover:bg-white/5 transition-all group">
-                <div className="space-y-1">
-                  <p className="text-[13px] font-bold text-slate-100 uppercase tracking-tight group-hover:text-blue-400 transition-colors">{c.descripcion}</p>
-                  <p className="text-[10px] text-slate-500 font-mono py-0.5 uppercase tracking-wide">
-                    P/N: {c.numero_parte || 'N/A'} · RUNTIME: {formatHoras(c.horas_acumuladas)}
-                  </p>
+              <div key={c.id} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
+                <div>
+                  <p className="font-medium text-gray-800">{c.descripcion}</p>
+                  <p className="text-xs text-gray-400">P/N: {c.numero_parte} · {formatHoras(c.horas_acumuladas)}</p>
                 </div>
-                <Badge variant={c.estado === 'apto' ? 'success' : c.estado === 'reparacion' ? 'warning' : 'danger'} className="text-[8px] font-bold border-none uppercase tracking-widest px-3 py-1">
+                <Badge variant={c.estado === 'apto' ? 'success' : c.estado === 'reparacion' ? 'warning' : 'danger'}>
                   {c.estado}
                 </Badge>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   )
