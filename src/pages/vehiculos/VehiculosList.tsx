@@ -280,7 +280,8 @@ export default function VehiculosList() {
   )
   const [filtroEstacionSel, setFiltroEstacionSel] = useState<string | null>(null)
 
-  const estacionFiltro = esNacional ? filtroEstacionSel : estacionId
+  // Nacional y Regional: respetar el selector. Estación: fijo su estacionId
+  const estacionFiltro = (esNacional || esRegional) ? filtroEstacionSel : estacionId
   const { data: vehiculos, isLoading } = useVehiculos(estacionFiltro)
 
   // Obtener regional_id del usuario para filtrar estaciones del Jefe Regional
