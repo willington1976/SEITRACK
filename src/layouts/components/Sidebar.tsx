@@ -27,9 +27,10 @@ const ICONS = {
   shield:       "M9 2l1.09 3.26L13.5 4l-2.18 2.5L12.5 10 9 8.27 5.5 10l1.18-3.5L4.5 4l3.41 1.26L9 2z",
   settings:     "M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947z",
   ot:           "M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm1 4a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm0 4a1 1 0 011-1h4a1 1 0 110 2H6a1 1 0 01-1-1z",
+  warning:      "M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z",
 }
 
-// ─── Definición de menús por el rol ──────────────────────────────────────────────
+// ─── Definición de menús por rol ──────────────────────────────────────────────
 
 interface NavItem {
   to:      string
@@ -136,6 +137,7 @@ function getNavGroups(rol: Rol, pendingCount: number, pendingRecibo: number = 0)
         {
           label: 'Supervisión',
           items: [
+            { to: '/novedades',                 label: 'Novedades',       sublabel: 'Activas en flota',  icon: ICONS.warning },
             { to: '/reportes',                 label: 'Reportes / AVC',  sublabel: 'Cap. X · DSNA',     icon: ICONS.chart },
             { to: '/personal/certificaciones', label: 'Certificaciones', sublabel: 'Cap. VII · TME',    icon: ICONS.certificate },
           ]

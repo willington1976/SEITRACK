@@ -28,6 +28,7 @@ const OrdenesTrabajoList  = lazy(() => import('@/pages/mantenimiento/OrdenesTrab
 const OrdenTrabajoForm    = lazy(() => import('@/pages/mantenimiento/OrdenTrabajoForm'))
 const LibroOperacion      = lazy(() => import('@/pages/libro-operacion/LibroOperacion'))
 const ReportesAVC         = lazy(() => import('@/pages/reportes/ReportesAVC'))
+const NovedadesActivas    = lazy(() => import('@/pages/novedades/NovedadesActivas'))
 const DrilldownRegional   = lazy(() => import('@/pages/dashboard/DrilldownRegional'))
 const DrilldownEstacion   = lazy(() => import('@/pages/dashboard/DrilldownEstacion'))
 const AdminUsuarios       = lazy(() => import('@/pages/admin/AdminUsuarios'))
@@ -148,6 +149,7 @@ export default function App() {
           {/* Rutas raíz para bombero - detectan vehículo automáticamente */}
           <Route path="inspecciones" element={<InspeccionesHome />} />
           <Route path="inspeccion-recibo" element={<InspeccionRecibo />} />
+          <Route path="novedades" element={<NovedadesActivas />} />
           <Route path="libro-operacion" element={<LibroHome />} />
 
           {/* Drill-down nacional → regional → estación */}
