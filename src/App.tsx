@@ -160,6 +160,7 @@ export default function App() {
           <Route path="vehiculos">
             <Route index element={<VehiculosList />} />
             <Route path="nuevo" element={<VehiculoForm />} />
+            <Route path=":vehiculoId/editar" element={<VehiculoForm />} />
             <Route path=":vehiculoId" element={<VehiculoDetail />} />
           </Route>
 

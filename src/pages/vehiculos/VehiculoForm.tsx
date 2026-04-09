@@ -1,247 +1,368 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+// ─── VehiculoForm — Registro y edición de MRE ────────────────────────────────
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
-import { db } from '@/db/dexie'
-import { enqueue } from '@/db/sync-queue'
 import { useAuthStore } from '@/stores/auth.store'
-import { MarcaVehiculo, ProgramaMTO, EstadoVehiculo } from '@/core/enums'
-import { QUERY_KEYS } from '@/lib/constants'
-import { cn } from '@/lib/utils'
-import type { Vehiculo } from '@/core/types'
+import { Spinner } from '@/components/ui/Spinner'
+import { MarcaVehiculo, ProgramaMTO, EstadoVehiculo, Rol } from '@/core/enums'
 
-// ─── Relación marca → modelos → programa MTO ─────────────────────────────────
+// ─── Configuración marca → modelos → programa MTO ────────────────────────────
 
-const MARCA_CONFIG: Record<MarcaVehiculo, {
-  label: string; modelos: string[]; programa: ProgramaMTO
-}> = {
-  [MarcaVehiculo.OshkoshSerieT]: {
-    label:   'Oshkosh Serie T',
-    modelos: ['T-1500', 'T-6', 'T-12', 'T-1000', 'P-19'],
-    programa: ProgramaMTO.SerieT,
-  },
-  [MarcaVehiculo.OshkoshStriker]: {
-    label:   'Oshkosh Striker 1500',
-    modelos: ['Striker 1500', 'Striker 3000'],
-    programa: ProgramaMTO.Striker1500,
-  },
-  [MarcaVehiculo.Rosenbauer]: {
-    label:   'Rosenbauer Panther 4×4',
-    modelos: ['Panther 4×4', 'Panther 6×6', 'Panther 8×8'],
-    programa: ProgramaMTO.Panther4x4,
-  },
+const MARCA_CONFIG: Record<string, { label: string; modelos: string[]; programa: ProgramaMTO }> = {
+  [MarcaVehiculo.OshkoshSerieT]:  { label: 'Oshkosh',     modelos: ['Striker 1500', 'Striker 3000', 'Striker 4500'], programa: ProgramaMTO.Striker1500 },
+  [MarcaVehiculo.Rosenbauer]:     { label: 'Rosenbauer',  modelos: ['Panther 4×4', 'Panther 6×6', 'Panther CA5'],   programa: ProgramaMTO.Panther4x4  },
+  [MarcaVehiculo.E_ONE]:          { label: 'E-ONE',       modelos: ['Titan HPR', 'Cyclone II'],                      programa: ProgramaMTO.SerieT      },
+  [MarcaVehiculo.SimplexGrinnell]:{ label: 'Simplex',     modelos: ['Javelin', 'Eagle'],                             programa: ProgramaMTO.SerieT      },
 }
+
+const ESTADO_OPTS = [
+  { v: EstadoVehiculo.Operativo,       l: 'Operativo' },
+  { v: EstadoVehiculo.EnMantenimiento, l: 'En mantenimiento' },
+  { v: EstadoVehiculo.FueraDeServicio, l: 'Fuera de servicio' },
+]
+
+const INPUT = `w-full bg-slate-950 border border-white/5 rounded-xl px-3 py-2.5
+  text-sm text-slate-200 placeholder-slate-600
+  focus:outline-none focus:ring-1 focus:ring-blue-500/30`
+
+const LABEL = `block text-[9px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5`
 
 const ANO_MIN = 1990
 const ANO_MAX = new Date().getFullYear() + 1
 
-// ─── Formulario ───────────────────────────────────────────────────────────────
+// ─── Hook estaciones ─────────────────────────────────────────────────────────
 
-interface FormState {
-  matricula: string; numero_serie: string; marca: MarcaVehiculo | ''
-  modelo: string; anio: string; kilometraje_actual: string
-  horas_motor: string; fecha_adquisicion: string; estado: EstadoVehiculo
+function useEstaciones() {
+  return useQuery({
+    queryKey: ['estaciones', 'all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('estaciones')
+        .select('id, nombre, codigo_iata, ciudad, regional:regionales(nombre, codigo)')
+        .eq('activa', true)
+        .order('nombre')
+      if (error) throw error
+      return data ?? []
+    },
+    staleTime: 1000 * 60 * 10,
+  })
 }
 
-const FORM_VACIO: FormState = {
-  matricula:          '',
-  numero_serie:       '',
-  marca:              '',
-  modelo:             '',
-  anio:               String(new Date().getFullYear()),
-  kilometraje_actual: '0',
-  horas_motor:        '0',
-  fecha_adquisicion:  new Date().toISOString().split('T')[0],
-  estado:             EstadoVehiculo.Operativo,
+function useVehiculoEditar(id?: string) {
+  return useQuery({
+    queryKey: ['vehiculo', 'editar', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vehiculos')
+        .select('*')
+        .eq('id', id!)
+        .single()
+      if (error) throw error
+      return data
+    },
+    enabled: !!id,
+  })
 }
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function VehiculoForm() {
   const navigate    = useNavigate()
+  const { vehiculoId } = useParams<{ vehiculoId?: string }>()
+  const esEdicion   = !!vehiculoId
   const qc          = useQueryClient()
   const usuario     = useAuthStore(s => s.usuario)
-  const estacionId  = usuario?.estacion_id
+  const rol         = usuario?.rol as Rol
+  const puedeElegirEstacion = rol === Rol.JefeNacional || rol === Rol.JefeRegional
 
-  const [form, setForm]   = useState<FormState>(FORM_VACIO)
-  const [errorStatus, setErrorStatus] = useState('')
+  const { data: estaciones, isLoading: loadingEst } = useEstaciones()
+  const { data: vehiculoExistente, isLoading: loadingV } = useVehiculoEditar(vehiculoId)
 
-  const modelosDisponibles = form.marca ? MARCA_CONFIG[form.marca as MarcaVehiculo].modelos : []
-  const programaMTO = form.marca ? MARCA_CONFIG[form.marca as MarcaVehiculo].programa : null
-
-  function setField(k: keyof FormState, v: string) {
-    setForm(prev => {
-      const next = { ...prev, [k]: v }
-      if (k === 'marca') next.modelo = ''
-      return next
-    })
-    setErrorStatus('')
-  }
-
-  function validar(): string | null {
-    if (!form.matricula.trim()) return 'La matrícula es obligatoria'
-    if (!form.numero_serie.trim()) return 'El número de serie es obligatorio'
-    if (!form.marca) return 'Selecciona una marca'
-    if (!form.modelo) return 'Selecciona un modelo'
-    const anio = Number(form.anio)
-    if (isNaN(anio) || anio < ANO_MIN || anio > ANO_MAX) return `El año debe estar entre ${ANO_MIN} y ${ANO_MAX}`
-    if (!form.fecha_adquisicion) return 'La fecha de adquisición es obligatoria'
-    return null
-  }
-
-  const { mutate: crear, isPending } = useMutation({
-    mutationFn: async () => {
-      const err = validar(); if (err) throw new Error(err)
-      if (!estacionId) throw new Error('No tienes estación asignada')
-
-      const id = crypto.randomUUID()
-      const now = new Date().toISOString()
-      const vehiculo: Vehiculo = {
-        id, estacion_id: estacionId, matricula: form.matricula.trim().toUpperCase(),
-        numero_serie: form.numero_serie.trim().toUpperCase(), marca: form.marca as MarcaVehiculo,
-        modelo: form.modelo, anio: Number(form.anio), kilometraje_actual: Number(form.kilometraje_actual) || 0,
-        horas_motor: Number(form.horas_motor) || 0, estado: form.estado, fecha_adquisicion: form.fecha_adquisicion,
-        programa_mto: programaMTO!, created_at: now,
-      }
-
-      await db.vehiculos.add(vehiculo)
-      try {
-        const { error: sbErr } = await supabase.from('vehiculos').insert(vehiculo)
-        if (sbErr) throw sbErr
-      } catch {
-        await enqueue({ tabla: 'vehiculos', operacion: 'INSERT', payload: vehiculo as any })
-      }
-      return vehiculo
-    },
-    onSuccess: (v) => { qc.invalidateQueries({ queryKey: QUERY_KEYS.vehiculos(estacionId!) }); navigate(`/vehiculos/${v.id}`) },
-    onError: (err: Error) => setErrorStatus(err.message),
+  const [form, setForm] = useState({
+    matricula:          '',
+    numero_serie:       '',
+    marca:              '' as MarcaVehiculo | '',
+    modelo:             '',
+    anio:               String(new Date().getFullYear()),
+    kilometraje_actual: '0',
+    horas_motor:        '0',
+    fecha_adquisicion:  new Date().toISOString().split('T')[0],
+    estado:             EstadoVehiculo.Operativo as EstadoVehiculo,
+    estacion_id:        usuario?.estacion_id ?? '',
   })
 
+  const [error,     setError]     = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  // Pre-poblar si es edición
+  useEffect(() => {
+    if (vehiculoExistente) {
+      setForm({
+        matricula:          vehiculoExistente.matricula ?? '',
+        numero_serie:       vehiculoExistente.numero_serie ?? '',
+        marca:              vehiculoExistente.marca ?? '',
+        modelo:             vehiculoExistente.modelo ?? '',
+        anio:               String(vehiculoExistente.anio ?? new Date().getFullYear()),
+        kilometraje_actual: String(vehiculoExistente.kilometraje_actual ?? 0),
+        horas_motor:        String(vehiculoExistente.horas_motor ?? 0),
+        fecha_adquisicion:  vehiculoExistente.fecha_adquisicion ?? new Date().toISOString().split('T')[0],
+        estado:             vehiculoExistente.estado ?? EstadoVehiculo.Operativo,
+        estacion_id:        vehiculoExistente.estacion_id ?? usuario?.estacion_id ?? '',
+      })
+    }
+  }, [vehiculoExistente])
+
+  function set(k: string, v: string) {
+    setForm(p => {
+      const next: any = { ...p, [k]: v }
+      // Auto-seleccionar primer modelo al cambiar marca
+      if (k === 'marca' && v && MARCA_CONFIG[v]) {
+        next.modelo = MARCA_CONFIG[v].modelos[0]
+      }
+      return next
+    })
+  }
+
+  function validar(): string {
+    if (!form.matricula.trim())    return 'La matrícula es obligatoria'
+    if (!form.numero_serie.trim()) return 'El número de serie es obligatorio'
+    if (!form.marca)               return 'Selecciona la marca'
+    if (!form.modelo)              return 'Selecciona el modelo'
+    if (!form.estacion_id)         return 'Selecciona la estación'
+    const anio = Number(form.anio)
+    if (isNaN(anio) || anio < ANO_MIN || anio > ANO_MAX)
+      return `El año debe estar entre ${ANO_MIN} y ${ANO_MAX}`
+    return ''
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const err = validar()
+    if (err) { setError(err); return }
+    setError('')
+    setGuardando(true)
+
+    try {
+      const programa = MARCA_CONFIG[form.marca as MarcaVehiculo]?.programa ?? ProgramaMTO.Panther4x4
+      const payload = {
+        matricula:          form.matricula.trim().toUpperCase(),
+        numero_serie:       form.numero_serie.trim().toUpperCase(),
+        marca:              form.marca,
+        modelo:             form.modelo,
+        anio:               Number(form.anio),
+        kilometraje_actual: Number(form.kilometraje_actual) || 0,
+        horas_motor:        Number(form.horas_motor) || 0,
+        fecha_adquisicion:  form.fecha_adquisicion || null,
+        estado:             form.estado,
+        estacion_id:        form.estacion_id,
+        programa_mto:       programa,
+      }
+
+      if (esEdicion) {
+        const { error } = await supabase.from('vehiculos').update(payload).eq('id', vehiculoId!)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('vehiculos').insert(payload)
+        if (error) throw error
+      }
+
+      qc.invalidateQueries({ queryKey: ['vehiculos'] })
+      qc.invalidateQueries({ queryKey: ['vehiculo'] })
+      navigate('/vehiculos')
+    } catch (e: any) {
+      setError(e?.message ?? 'Error al guardar. Intenta de nuevo.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  if (esEdicion && loadingV) return <div className="flex justify-center py-20"><Spinner size="lg"/></div>
+
+  const modelosDisponibles = form.marca ? MARCA_CONFIG[form.marca]?.modelos ?? [] : []
+
   return (
-    <div className="space-y-8 max-w-3xl page-enter pb-20">
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 flex items-center justify-center hover:bg-white/5 text-slate-400 transition-all">
-          <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor"><path fillRule="evenodd" d="M9.78 4.22a.75.75 0 010 1.06L7.06 8l2.72 2.72a.75.75 0 11-1.06 1.06L5.47 8.53a.75.75 0 010-1.06l3.25-3.25a.75.75 0 011.06 0z"/></svg>
+    <div className="relative space-y-5 max-w-2xl">
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 blur-[120px] pointer-events-none"/>
+
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate(-1)}
+          className="p-2 glass-panel rounded-xl border border-white/5 hover:border-white/10 transition-all">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" className="text-slate-400">
+            <path fillRule="evenodd" d="M9.78 4.22a.75.75 0 010 1.06L7.06 8l2.72 2.72a.75.75 0 11-1.06 1.06L5.47 8.53a.75.75 0 010-1.06l3.25-3.25a.75.75 0 011.06 0z"/>
+          </svg>
         </button>
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight uppercase">Alta de Unidad MRE</h1>
-          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-1 italic">Ingreso al Registro Nacional de Flota</p>
+          <p className="text-[9px] text-blue-400/70 uppercase tracking-widest font-semibold">
+            {esEdicion ? 'Editar MRE' : 'Nueva MRE'}
+          </p>
+          <h1 className="text-xl font-bold text-white">
+            {esEdicion ? 'ACTUALIZAR VEHÍCULO' : 'REGISTRAR VEHÍCULO'}
+          </h1>
         </div>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); const err = validar(); if (err) { setErrorStatus(err); return }; crear() }} className="space-y-6">
-        
-        {/* Identificación */}
-        <div className="glass-panel rounded-3xl p-8 space-y-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600/50" />
-          <div>
-            <h3 className="text-sm font-bold text-white uppercase tracking-tight">Identificación de Célula</h3>
-            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-1 italic">Parámetros únicos de registro</p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Matrícula / Indicador *</label>
-              <input type="text" value={form.matricula} onChange={e => setField('matricula', e.target.value)} placeholder="SEI-XXX-000"
-                className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white uppercase font-mono placeholder:text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500/30"/>
+      <form onSubmit={handleSubmit} className="space-y-4">
+
+        {/* Sección 1 — Identificación */}
+        <div className="glass-panel rounded-2xl border border-white/5 p-5 space-y-4">
+          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+            Identificación de la Unidad
+          </p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={LABEL}>Matrícula *</label>
+              <input type="text" value={form.matricula}
+                onChange={e => set('matricula', e.target.value.toUpperCase())}
+                placeholder="BRI630 / SEI-071"
+                className={`${INPUT} font-mono font-bold`}/>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Número de Serie (VIN) *</label>
-              <input type="text" value={form.numero_serie} onChange={e => setField('numero_serie', e.target.value)} placeholder="REGISTRO FUSELAJE..."
-                className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white uppercase font-mono placeholder:text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500/30"/>
+            <div>
+              <label className={LABEL}>Número de Serie *</label>
+              <input type="text" value={form.numero_serie}
+                onChange={e => set('numero_serie', e.target.value.toUpperCase())}
+                placeholder="SN-2020-00123"
+                className={`${INPUT} font-mono`}/>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={LABEL}>Marca *</label>
+              <select value={form.marca} onChange={e => set('marca', e.target.value)}
+                className={INPUT}>
+                <option value="">Seleccionar...</option>
+                {Object.entries(MARCA_CONFIG).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>Modelo *</label>
+              <select value={form.modelo} onChange={e => set('modelo', e.target.value)}
+                disabled={!form.marca}
+                className={INPUT}>
+                <option value="">Seleccionar...</option>
+                {modelosDisponibles.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>Año de fabricación *</label>
+              <input type="number" value={form.anio}
+                onChange={e => set('anio', e.target.value)}
+                min={ANO_MIN} max={ANO_MAX}
+                className={INPUT}/>
             </div>
           </div>
         </div>
 
-        {/* Fabricante y Modelo */}
-        <div className="glass-panel rounded-3xl p-8 space-y-8">
-          <div>
-            <h3 className="text-sm font-bold text-white uppercase tracking-tight">Sistemas y Motorización</h3>
-            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-1 italic">Configuración de plataforma y fabricante</p>
-          </div>
-          
-          <div className="space-y-4">
-            <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1 block">Fabricante Autorizado</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {Object.entries(MARCA_CONFIG).map(([valor, cfg]) => (
-                <label key={valor} className={cn('flex flex-col gap-1 p-5 rounded-2xl border cursor-pointer transition-all relative group overflow-hidden', form.marca === valor ? 'bg-blue-600/10 border-blue-500/40 shadow-xl shadow-blue-500/10' : 'bg-slate-950/50 border-white/5 text-slate-500 hover:border-white/10 hover:text-slate-300')}>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className={cn("text-[10px] font-bold uppercase tracking-tight", form.marca === valor ? "text-blue-400" : "text-slate-400")}>{cfg.label.split(' ')[0]}</p>
-                    <input type="radio" name="marca" value={valor} checked={form.marca === valor} onChange={e => setField('marca', e.target.value)} className="hidden"/>
-                    {form.marca === valor && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />}
-                  </div>
-                  <p className="text-[9px] uppercase leading-none italic">{cfg.label.split(' ').slice(1).join(' ')}</p>
-                </label>
-              ))}
-            </div>
-          </div>
+        {/* Sección 2 — Asignación */}
+        <div className="glass-panel rounded-2xl border border-white/5 p-5 space-y-4">
+          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+            Asignación Operacional
+          </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Designación de Modelo *</label>
-              <select disabled={!form.marca} value={form.modelo} onChange={e => setField('modelo', e.target.value)}
-                className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30 disabled:opacity-30 appearance-none">
-                <option value="" className="bg-slate-950">SELECT MODEL...</option>
-                {modelosDisponibles.map(m => <option key={m} value={m} className="bg-slate-950 text-white">{m.toUpperCase()}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Año de Fabricación *</label>
-              <input type="number" min={ANO_MIN} max={ANO_MAX} value={form.anio} onChange={e => setField('anio', e.target.value)}
-                className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30"/>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-             <div className={cn("rounded-2xl p-5 border transition-all flex items-center gap-4", programaMTO ? "bg-emerald-500/5 border-emerald-500/20 shadow-lg shadow-emerald-500/5" : "bg-slate-950/50 border-white/5 opacity-40")}>
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border text-lg", programaMTO ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-slate-900 border-white/5 text-slate-700")}>⚙️</div>
-                <div>
-                   <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Protocolo MTO</p>
-                   <p className="text-[11px] font-bold text-emerald-400 font-mono tracking-tighter uppercase">{programaMTO || 'WAITTING...'}</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className={puedeElegirEstacion ? 'col-span-2' : 'col-span-2'}>
+              <label className={LABEL}>Estación asignada *</label>
+              {puedeElegirEstacion ? (
+                <select value={form.estacion_id}
+                  onChange={e => set('estacion_id', e.target.value)}
+                  disabled={loadingEst}
+                  className={INPUT}>
+                  <option value="">Seleccionar estación...</option>
+                  {(estaciones ?? []).map((e: any) => (
+                    <option key={e.id} value={e.id}>
+                      {e.codigo_iata} — {e.nombre} · {(e.regional as any)?.nombre}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className={`${INPUT} opacity-60 cursor-not-allowed`}>
+                  {estaciones?.find((e: any) => e.id === form.estacion_id)?.nombre ?? 'Tu estación asignada'}
                 </div>
-             </div>
-             <div className="space-y-1.5 text-right">
-                <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1 block">Fecha de Comisión *</label>
-                <input type="date" value={form.fecha_adquisicion} onChange={e => setField('fecha_adquisicion', e.target.value)}
-                  className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30"/>
+              )}
             </div>
-          </div>
-        </div>
 
-        {/* Telemetría */}
-        <div className="glass-panel rounded-3xl p-8 space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Estado de Flota</label>
-              <select value={form.estado} onChange={e => setField('estado', e.target.value as EstadoVehiculo)}
-                className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-xs text-white uppercase font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30 appearance-none">
-                <option value={EstadoVehiculo.Operativo} className="bg-slate-950">OPERATIVO</option>
-                <option value={EstadoVehiculo.EnMantenimiento} className="bg-slate-950 text-amber-500">MANTENIMIENTO</option>
-                <option value={EstadoVehiculo.FueraDeServicio} className="bg-slate-950 text-red-500">FUERA SERVICIO</option>
+            <div>
+              <label className={LABEL}>Estado actual</label>
+              <select value={form.estado} onChange={e => set('estado', e.target.value)}
+                className={INPUT}>
+                {ESTADO_OPTS.map(o => (
+                  <option key={o.v} value={o.v}>{o.l}</option>
+                ))}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Lectura Odómetro (KM)</label>
-              <input type="number" min="0" value={form.kilometraje_actual} onChange={e => setField('kilometraje_actual', e.target.value)}
-                className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm text-blue-400 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/30"/>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Lectura Horas (Engine)</label>
-              <input type="number" min="0" value={form.horas_motor} onChange={e => setField('horas_motor', e.target.value)}
-                className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-4 text-sm text-blue-400 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/30"/>
+
+            <div>
+              <label className={LABEL}>Fecha de adquisición</label>
+              <input type="date" value={form.fecha_adquisicion}
+                onChange={e => set('fecha_adquisicion', e.target.value)}
+                className={INPUT}/>
             </div>
           </div>
         </div>
 
-        {errorStatus && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-6 py-4 flex items-center gap-4 text-red-500 animate-pulse">
-            <span className="text-[10px] font-bold uppercase tracking-widest drop-shadow-[0_0_5px_rgba(239,68,68,0.5)]">ERROR DE SISTEMA: {errorStatus.toUpperCase()}</span>
+        {/* Sección 3 — Odómetro */}
+        <div className="glass-panel rounded-2xl border border-white/5 p-5 space-y-4">
+          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+            Telemetría Inicial
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={LABEL}>Kilometraje actual (km)</label>
+              <input type="number" min="0" value={form.kilometraje_actual}
+                onChange={e => set('kilometraje_actual', e.target.value)}
+                placeholder="0"
+                className={`${INPUT} font-mono`}/>
+            </div>
+            <div>
+              <label className={LABEL}>Horas de motor (h)</label>
+              <input type="number" min="0" value={form.horas_motor}
+                onChange={e => set('horas_motor', e.target.value)}
+                placeholder="0"
+                className={`${INPUT} font-mono`}/>
+            </div>
+          </div>
+
+          {/* Resumen programa MTO */}
+          {form.marca && (
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-[9px] text-slate-500 uppercase tracking-widest">
+                Programa de mantenimiento:
+              </span>
+              <span className="text-[9px] font-bold text-blue-400 bg-blue-500/10
+                               border border-blue-500/20 px-2 py-0.5 rounded font-mono uppercase">
+                {MARCA_CONFIG[form.marca]?.programa ?? '—'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-red-400">
+            {error}
           </div>
         )}
 
-        <div className="flex gap-4 pt-4 pt-10 border-t border-white/5">
-          <button type="button" onClick={() => navigate(-1)} className="flex-1 py-4 bg-slate-950 border border-white/5 rounded-2xl text-[10px] font-bold text-slate-500 hover:text-white transition-all uppercase tracking-widest">Desestimar Registro</button>
-          <button type="submit" disabled={isPending}
-            className="flex-1 py-4 bg-blue-600 text-white rounded-2xl text-[11px] font-bold hover:bg-blue-500 transition-all uppercase tracking-widest shadow-xl shadow-blue-600/20 border border-white/10 flex items-center justify-center gap-3">
-            {isPending ? 'SINCRO EN CURSO...' : 'CONFIRMAR INGRESO →'}
+        {/* Botones */}
+        <div className="flex gap-3">
+          <button type="button" onClick={() => navigate(-1)}
+            className="flex-1 py-3 border border-white/10 rounded-xl text-xs
+                       text-slate-400 font-bold uppercase tracking-widest
+                       hover:bg-white/5 transition-all">
+            Cancelar
+          </button>
+          <button type="submit" disabled={guardando}
+            className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl
+                       text-xs font-bold uppercase tracking-widest transition-all
+                       disabled:opacity-40 shadow-lg shadow-blue-600/20">
+            {guardando ? 'Guardando...' : esEdicion ? '✓ Actualizar MRE' : '+ Registrar MRE'}
           </button>
         </div>
       </form>

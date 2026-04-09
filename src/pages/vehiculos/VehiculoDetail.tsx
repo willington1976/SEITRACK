@@ -30,6 +30,7 @@ export default function VehiculoDetail() {
   )
 
   const b = estadoBadge[v.estado as EstadoVehiculo]
+  const puedeEditar = rol === Rol.JefeNacional || rol === Rol.JefeRegional
 
   return (
     <div className="space-y-4">
@@ -46,7 +47,17 @@ export default function VehiculoDetail() {
             <p className="text-sm text-gray-400">{v.modelo} · {v.anio}</p>
           </div>
         </div>
-        <Badge variant={b.v}>{b.l}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={b.v}>{b.l}</Badge>
+          {(rol === Rol.JefeNacional || rol === Rol.JefeRegional) && (
+            <Link to={'/vehiculos/' + v.id + '/editar'}
+              className="text-[9px] font-bold px-3 py-1.5 rounded-xl border
+                         border-white/10 text-slate-400 hover:bg-white/5
+                         transition-all uppercase tracking-widest">
+              ✎ Editar
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Info básica */}
