@@ -10,7 +10,7 @@ export const vehiculosService = {
     try {
       let q = supabase
         .from('vehiculos')
-        .select('*, estacion:estaciones(nombre, codigo_iata, ciudad)')
+        .select('*, estacion:estaciones(id, nombre, codigo_iata, ciudad, regional_id, regional:regionales(id, nombre, codigo))')
         .order('matricula')
 
       if (estacion_id) {
