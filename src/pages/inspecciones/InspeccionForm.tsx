@@ -241,6 +241,46 @@ export default function InspeccionForm() {
         },
         items,
       })
+
+      // ── Acciones automáticas según resultado ──────────────────────────────
+      if (resultado === 'rechazado' && criticos.length > 0) {
+        // 1. Vehículo → FUERA DE SERVICIO inmediato (Cat A)
+        await import('@/services/supabase').then(({ supabase }) =>
+          supabase.from('vehiculos')
+            .update({ estado: 'fuera_de_servicio' })
+            .eq('id', vehiculo.id)
+        )
+
+        // 2. Crear discrepancia por cada falla crítica
+        const { supabase } = await import('@/services/supabase')
+        const discDesc = `Fallas detectadas en inspección ${fase.toUpperCase()} - Turno ${turno}:
+${criticos.map(c => `• ${c}`).join('
+')}`
+
+        const { data: disc } = await supabase.from('discrepancias').insert({
+          vehiculo_id:      vehiculo.id,
+          reportado_por:    usuario.id,
+          sistema_afectado: 'Múltiples sistemas',
+          tipo_falla:       'cronica',
+          descripcion:      discDesc,
+          criticidad:       'alta',
+          estado:           'abierta',
+        }).select('id').single()
+
+        // 3. Crear OT correctiva automática
+        if (disc?.id) {
+          await supabase.from('ordenes_trabajo').insert({
+            vehiculo_id:     vehiculo.id,
+            creado_por:      usuario.id,
+            discrepancia_id: disc.id,
+            tipo:            'correctivo',
+            prioridad:       'alta',
+            estado:          'abierta',
+            descripcion:     `[AUTO] Corrección requerida por inspección ${fase.toUpperCase()} rechazada. Fallas: ${criticos.slice(0, 3).join(', ')}${criticos.length > 3 ? ` y ${criticos.length - 3} más` : ''}`,
+          })
+        }
+      }
+
       setPaso('exito')
     } catch (e: unknown) {
       setError('Error al guardar. Los datos quedan en espera de sincronización.')
@@ -253,36 +293,79 @@ export default function InspeccionForm() {
 
   // ─── PANTALLA ÉXITO ───────────────────────────────────────────────────────
   if (paso === 'exito') {
-    const tieneFallas = Object.values(resultados).some(r => r === ResultadoItem.Falla)
+    const criticosFinales = getCriticosConFalla(sistemas, resultados as Record<string, string>)
+    const esRechazado     = criticosFinales.length > 0
+    const tieneObs        = !esRechazado && Object.values(resultados).some(r => r === ResultadoItem.Falla)
+
     return (
-      <div className="flex flex-col items-center justify-center min-h-64 text-center space-y-4 py-8">
-        <div className={cn(
-          'w-16 h-16 rounded-full flex items-center justify-center text-white text-3xl',
-          tieneFallas ? 'bg-amber-500' : 'bg-green-500'
-        )}>
-          {tieneFallas ? '⚠' : '✓'}
+      <div className="relative flex flex-col items-center justify-center min-h-64 text-center space-y-5 py-8">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 blur-[80px] opacity-30 ${
+            esRechazado ? 'bg-red-500' : tieneObs ? 'bg-amber-500' : 'bg-emerald-500'
+          }`}/>
         </div>
-        <div>
-          <p className="text-base font-semibold text-gray-900">
-            {tieneFallas ? 'Inspección registrada con fallas' : 'Inspección completada'}
-          </p>
-          <p className="text-sm text-gray-400 mt-1">
-            {tieneFallas
-              ? 'Se ha generado una discrepancia. El vehículo queda fuera de servicio.'
-              : `Vehículo ${vehiculo.matricula} liberado al servicio.`}
-          </p>
+
+        {/* Ícono resultado */}
+        <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl
+                         border-2 ${
+          esRechazado
+            ? 'border-red-500/50 bg-red-500/10'
+            : tieneObs
+            ? 'border-amber-500/50 bg-amber-500/10'
+            : 'border-emerald-500/50 bg-emerald-500/10'
+        }`}>
+          {esRechazado ? '🚨' : tieneObs ? '⚠️' : '✅'}
         </div>
+
+        {/* Mensaje */}
+        <div className="space-y-2">
+          <p className={`text-xl font-bold uppercase tracking-wide ${
+            esRechazado ? 'text-red-400' : tieneObs ? 'text-amber-400' : 'text-emerald-400'
+          }`}>
+            {esRechazado
+              ? 'VEHÍCULO FUERA DE SERVICIO'
+              : tieneObs
+              ? 'INSPECCIÓN CON OBSERVACIONES'
+              : 'VEHÍCULO LIBERADO AL SERVICIO'}
+          </p>
+          <p className="text-sm text-slate-400 max-w-sm">
+            {esRechazado
+              ? `${vehiculo.matricula} fue bloqueado automáticamente. Se generó una OT correctiva para la ODMA.`
+              : tieneObs
+              ? `${vehiculo.matricula} liberado con observaciones. El Jefe de Estación debe revisar.`
+              : `${vehiculo.matricula} aprobado para operación segura en este turno.`}
+          </p>
+          {esRechazado && (
+            <div className="glass-panel rounded-xl border border-red-500/20 px-4 py-3 text-left mt-2">
+              <p className="text-[9px] text-red-400 uppercase tracking-widest font-bold mb-2">
+                Fallas críticas detectadas:
+              </p>
+              {criticosFinales.slice(0, 5).map((c, i) => (
+                <p key={i} className="text-xs text-slate-300 leading-snug">• {c}</p>
+              ))}
+              {criticosFinales.length > 5 && (
+                <p className="text-[10px] text-slate-500 mt-1">
+                  y {criticosFinales.length - 5} fallas más...
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Botones */}
         <div className="flex gap-2">
-          <button
-            onClick={() => navigate(`/vehiculos/${vehiculo.id}`)}
-            className="px-5 py-2.5 bg-sei-600 text-white rounded-xl text-sm font-medium hover:bg-sei-700 transition-colors"
-          >
-            Ver vehículo
+          <button onClick={() => navigate('/')}
+            className={`px-5 py-2.5 text-white rounded-xl text-sm font-bold
+                        uppercase tracking-wide transition-all ${
+              esRechazado
+                ? 'bg-red-600 hover:bg-red-500'
+                : 'bg-blue-600 hover:bg-blue-500'
+            }`}>
+            Ir al Dashboard
           </button>
-          <button
-            onClick={() => navigate(-1)}
-            className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-          >
+          <button onClick={() => navigate(-1)}
+            className="px-5 py-2.5 border border-white/10 rounded-xl text-sm
+                       text-slate-400 hover:bg-white/5 transition-colors">
             Volver
           </button>
         </div>
