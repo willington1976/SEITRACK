@@ -253,9 +253,7 @@ export default function InspeccionForm() {
 
         // 2. Crear discrepancia por cada falla crítica
         const { supabase } = await import('@/services/supabase')
-        const discDesc = `Fallas detectadas en inspección ${fase.toUpperCase()} - Turno ${turno}:
-${criticos.map(c => `• ${c}`).join('
-')}`
+        const discDesc = 'Fallas detectadas en inspección ' + fase.toUpperCase() + ' - Turno ' + turno + ':\n' + criticos.map(c => '• ' + c).join('\n');
 
         const { data: disc } = await supabase.from('discrepancias').insert({
           vehiculo_id:      vehiculo.id,
