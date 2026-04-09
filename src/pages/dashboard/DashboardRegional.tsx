@@ -6,7 +6,7 @@ import { supabase } from '@/services/supabase'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
 
-const ICAO_STYLE: Record<string, { bg: string; text: string; border: string }> = {
+const OACI_STYLE: Record<string, { bg: string; text: string; border: string }> = {
   A: { bg: 'bg-red-500/10',    text: 'text-red-400',    border: 'border-red-500/30' },
   B: { bg: 'bg-amber-500/10',  text: 'text-amber-400',  border: 'border-amber-500/30' },
   C: { bg: 'bg-blue-500/10',   text: 'text-blue-400',   border: 'border-blue-500/30' },
@@ -124,7 +124,7 @@ export default function DashboardRegional() {
               const barC  = disp >= 80 ? 'bg-emerald-500' : disp >= 50 ? 'bg-amber-500' : 'bg-red-500'
               // Detectar categoría ICAO — puede ser número romano o letra
               const cat    = e.categoria_icao?.toString().trim() ?? 'D'
-              const icao   = ICAO_STYLE[cat] ?? ICAO_STYLE.D
+              const oaci   = OACI_STYLE[cat] ?? OACI_STYLE.D
 
               return (
                 <button
@@ -140,8 +140,8 @@ export default function DashboardRegional() {
                       {e.codigo_iata}
                     </p>
                     <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border
-                                     uppercase tracking-wider ${icao.bg} ${icao.text} ${icao.border}`}>
-                      CAT {cat}
+                                     uppercase tracking-wider ${oaci.bg} ${oaci.text} ${oaci.border}`}>
+                      CAT {cat.replace(/cat\s*/i, "").trim()}
                     </span>
                   </div>
 

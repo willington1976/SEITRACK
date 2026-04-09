@@ -30,7 +30,7 @@ function useEstacionesRegional(regionalId: string) {
   })
 }
 
-const ICAO_STYLE: Record<string, { bg: string; text: string; border: string }> = {
+const OACI_STYLE: Record<string, { bg: string; text: string; border: string }> = {
   A: { bg: 'bg-red-500/10',    text: 'text-red-400',    border: 'border-red-500/30' },
   B: { bg: 'bg-amber-500/10',  text: 'text-amber-400',  border: 'border-amber-500/30' },
   C: { bg: 'bg-blue-500/10',   text: 'text-blue-400',   border: 'border-blue-500/30' },
@@ -149,7 +149,7 @@ export default function DrilldownRegional() {
                 ? Math.round((Number(e.operativos) / Number(e.total_vehiculos)) * 100) : 0
               const dispColor = disp >= 80 ? 'text-emerald-400' : disp >= 50 ? 'text-amber-400' : 'text-red-400'
               const barColor  = disp >= 80 ? 'bg-emerald-500' : disp >= 50 ? 'bg-amber-500' : 'bg-red-500'
-              const icao = ICAO_STYLE[e.categoria_icao] ?? ICAO_STYLE.D
+              const oaci = OACI_STYLE[e.categoria_icao] ?? OACI_STYLE.D
 
               return (
                 <button key={e.id} onClick={() => navigate(`/estacion/${e.id}`)}
@@ -162,9 +162,9 @@ export default function DrilldownRegional() {
                       {e.codigo_iata}
                     </p>
                     <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded
-                                     border ${icao.bg} ${icao.text} ${icao.border}
+                                     border ${oaci.bg} ${oaci.text} ${oaci.border}
                                      uppercase tracking-wider`}>
-                      CAT {e.categoria_icao}
+                      CAT {e.categoria_icao?.toString().replace(/cat\s*/i, "").trim()}
                     </span>
                   </div>
 
