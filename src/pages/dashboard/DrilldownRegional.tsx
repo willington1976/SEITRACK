@@ -149,7 +149,7 @@ export default function DrilldownRegional() {
                 ? Math.round((Number(e.operativos) / Number(e.total_vehiculos)) * 100) : 0
               const dispColor = disp >= 80 ? 'text-emerald-400' : disp >= 50 ? 'text-amber-400' : 'text-red-400'
               const barColor  = disp >= 80 ? 'bg-emerald-500' : disp >= 50 ? 'bg-amber-500' : 'bg-red-500'
-              const oaci = OACI_STYLE[e.categoria_icao] ?? OACI_STYLE.D
+              const oaci = OACI_STYLE[e.categoria_oaci ?? e.categoria_icao] ?? OACI_STYLE.D
 
               return (
                 <button key={e.id} onClick={() => navigate(`/estacion/${e.id}`)}
@@ -164,7 +164,7 @@ export default function DrilldownRegional() {
                     <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded
                                      border ${oaci.bg} ${oaci.text} ${oaci.border}
                                      uppercase tracking-wider`}>
-                      CAT {e.categoria_icao?.toString().replace(/cat\s*/i, "").trim()}
+                      CAT {e.categoria_oaci ?? e.categoria_oaci ?? e.categoria_icao?.toString().replace(/cat\s*/i, "").trim()}
                     </span>
                   </div>
 

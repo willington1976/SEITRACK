@@ -123,7 +123,7 @@ export default function DashboardRegional() {
               const dispC = disp >= 80 ? 'text-emerald-400' : disp >= 50 ? 'text-amber-400' : 'text-red-400'
               const barC  = disp >= 80 ? 'bg-emerald-500' : disp >= 50 ? 'bg-amber-500' : 'bg-red-500'
               // Detectar categoría ICAO — puede ser número romano o letra
-              const cat    = e.categoria_icao?.toString().trim() ?? 'D'
+              const cat    = e.categoria_oaci ?? e.categoria_icao?.toString().trim() ?? 'D'
               const oaci   = OACI_STYLE[cat] ?? OACI_STYLE.D
 
               return (

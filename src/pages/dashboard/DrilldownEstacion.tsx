@@ -116,7 +116,7 @@ export default function DrilldownEstacion() {
   const total      = vehiculos?.length ?? 0
   const disp       = total > 0 ? Math.round((operativos / total) * 100) : 0
   const dispColor  = disp >= 80 ? 'text-emerald-400' : disp >= 50 ? 'text-amber-400' : 'text-red-400'
-  const oaci       = OACI_STYLE[estacion?.categoria_icao] ?? OACI_STYLE.D
+  const oaci       = OACI_STYLE[estacion?.categoria_oaci ?? estacion?.categoria_icao] ?? OACI_STYLE.D
 
   if (loadingEst) return <div className="flex justify-center py-20"><Spinner size="lg"/></div>
   if (!estacion)  return (
@@ -168,7 +168,7 @@ export default function DrilldownEstacion() {
             <h1 className="text-lg font-bold text-slate-200">{estacion.aeropuerto}</h1>
             <span className={`text-[9px] font-bold px-2 py-1 rounded border
                              uppercase tracking-widest ${oaci.bg} ${oaci.text} ${oaci.border}`}>
-              OACI CAT {estacion.categoria_icao?.toString().replace(/cat\s*/i, "").trim()}
+              OACI CAT {estacion.categoria_oaci ?? estacion.categoria_icao?.toString().replace(/cat\s*/i, "").trim()}
             </span>
           </div>
           <p className="text-slate-500 text-xs mt-1 uppercase tracking-wide">
