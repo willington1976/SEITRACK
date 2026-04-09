@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router'
 import { useVehiculo } from '@/hooks/useVehiculos'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase as sb } from '@/services/supabase'
 import { useCrearInspeccion } from '@/hooks/useInspecciones'
 import { useAuthStore } from '@/stores/auth.store'
@@ -131,6 +131,8 @@ export default function InspeccionForm() {
   const { data: vehiculo, isLoading } = useVehiculo(vehiculoId!)
 
   // Discrepancias activas del vehículo — novedades de turnos anteriores
+  const qcForm = useQueryClient()
+
   const { data: discrepanciasActivas } = useQuery({
     queryKey: ['discrepancias-activas', vehiculoId],
     queryFn: async () => {
@@ -271,32 +273,65 @@ export default function InspeccionForm() {
       // ── Acciones automáticas según resultado ──────────────────────────────
       const { supabase } = await import('@/services/supabase')
 
-      // Actualizar km y horas del vehículo
-      if (Number(km) > 0 || Number(horas) > 0) {
+      // Actualizar km y horas del vehículo — siempre que el bombero los haya ingresado
+      {
         const update: Record<string, number> = {}
-        if (Number(km) > (vehiculo.kilometraje_actual || 0)) update.kilometraje_actual = Number(km)
-        if (Number(horas) > (vehiculo.horas_motor || 0)) update.horas_motor = Number(horas)
+        if (Number(km) > 0)    update.kilometraje_actual = Number(km)
+        if (Number(horas) > 0) update.horas_motor        = Number(horas)
         if (Object.keys(update).length > 0) {
           await supabase.from('vehiculos').update(update).eq('id', vehiculo.id)
         }
       }
 
-      // ── Fallas con observaciones (Cat B/C/D) → discrepancia diferible ──
-      if (resultado === 'con_observaciones') {
+      // ── Novedades del turno (campo obs) → discrepancia aunque todo esté OK ──
+      if (obs.trim()) {
+        await supabase.from('discrepancias').insert({
+          vehiculo_id:      vehiculo.id,
+          reportado_por:    usuario.id,
+          sistema_afectado: 'General',
+          tipo_falla:       'cronica',
+          descripcion:      'Novedad turno ' + turno.toUpperCase() + ': ' + obs.trim(),
+          criticidad:       'baja',
+          estado:           'abierta',
+        })
+      }
+
+      // ── Ítems con FALLA + observación → discrepancia por sistema ──
+      if (resultado === 'con_observaciones' || resultado === 'rechazado') {
         const fallaItems = sistemas.flatMap(s => s.items).filter(
           item => resultados[item.id] === ResultadoItem.Falla
         )
         for (const item of fallaItems) {
-          await supabase.from('discrepancias').insert({
-            vehiculo_id:      vehiculo.id,
-            reportado_por:    usuario.id,
-            sistema_afectado: item.sistema,
-            tipo_falla:       'cronica',
-            descripcion:      item.descripcion + (obsItems[item.id] ? ': ' + obsItems[item.id] : ''),
-            criticidad:       'media',
-            estado:           'abierta',
-          })
+          const desc = item.descripcion + (obsItems[item.id] ? ' — ' + obsItems[item.id] : '')
+          // Evitar duplicar si ya se creó la discrepancia crítica general
+          if (resultado !== 'rechazado') {
+            await supabase.from('discrepancias').insert({
+              vehiculo_id:      vehiculo.id,
+              reportado_por:    usuario.id,
+              sistema_afectado: item.sistema,
+              tipo_falla:       'cronica',
+              descripcion:      desc,
+              criticidad:       'media',
+              estado:           'abierta',
+            })
+          }
         }
+      }
+
+      // ── Ítems con OBS (observación) → novedad leve ──
+      const itemsConObs = sistemas.flatMap(s => s.items).filter(
+        item => resultados[item.id] === ResultadoItem.Observacion && obsItems[item.id]?.trim()
+      )
+      for (const item of itemsConObs) {
+        await supabase.from('discrepancias').insert({
+          vehiculo_id:      vehiculo.id,
+          reportado_por:    usuario.id,
+          sistema_afectado: item.sistema,
+          tipo_falla:       'cronica',
+          descripcion:      item.descripcion + ' — OBS: ' + obsItems[item.id],
+          criticidad:       'baja',
+          estado:           'abierta',
+        })
       }
 
       if (resultado === 'rechazado' && criticos.length > 0) {
@@ -599,7 +634,7 @@ export default function InspeccionForm() {
       {/* ── Novedades de turno anterior ─────────────────────────────── */}
       {discrepanciasActivas && discrepanciasActivas.length > 0 && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-2">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"/>
             <p className="text-[9px] font-bold text-amber-400 uppercase tracking-widest">
               ⚠ {discrepanciasActivas.length} Novedad{discrepanciasActivas.length > 1 ? 'es' : ''} activa{discrepanciasActivas.length > 1 ? 's' : ''} — turno anterior
@@ -608,22 +643,44 @@ export default function InspeccionForm() {
           {discrepanciasActivas.map((d: any) => (
             <div key={d.id}
               className="flex items-start gap-2 bg-slate-950/50 rounded-xl px-3 py-2.5">
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${
-                d.criticidad === 'alta' ? 'bg-red-400' : 'bg-amber-400'
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${
+                d.criticidad === 'alta' ? 'bg-red-400' :
+                d.criticidad === 'media' ? 'bg-amber-400' : 'bg-blue-400'
               }`}/>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-slate-300 leading-snug">{d.descripcion}</p>
                 <p className="text-[9px] text-slate-500 uppercase tracking-wide mt-0.5">
                   {d.sistema_afectado}
                   {d.criticidad === 'alta' && (
-                    <span className="ml-2 text-red-400 font-bold">· CRÍTICA</span>
+                    <span className="ml-2 text-red-400 font-bold">· CRÍTICA — REQUIERE ODMA</span>
+                  )}
+                  {d.criticidad === 'media' && (
+                    <span className="ml-2 text-amber-400">· REQUIERE ODMA</span>
+                  )}
+                  {d.criticidad === 'baja' && (
+                    <span className="ml-2 text-blue-400">· PUEDE RESOLVER MAQUINISTA</span>
                   )}
                 </p>
               </div>
+              {/* Botón resolver — solo para novedades bajas */}
+              {d.criticidad === 'baja' && (
+                <button
+                  onClick={async () => {
+                    await sb.from('discrepancias')
+                      .update({ estado: 'cerrada' })
+                      .eq('id', d.id)
+                    qcForm.invalidateQueries({ queryKey: ['discrepancias-activas', vehiculoId] })
+                  }}
+                  className="shrink-0 text-[9px] font-bold px-2.5 py-1.5 rounded-lg
+                             bg-emerald-500/10 border border-emerald-500/20 text-emerald-400
+                             hover:bg-emerald-500/20 transition-all uppercase tracking-wide">
+                  ✓ Resuelta
+                </button>
+              )}
             </div>
           ))}
-          <p className="text-[9px] text-slate-500 pt-1">
-            Estas novedades permanecen hasta que la ODMA las corrija y el bombero verifique el recibo.
+          <p className="text-[9px] text-slate-500 pt-1 border-t border-white/5 mt-2">
+            Las novedades bajas las puede cerrar el maquinista. Las medias y críticas requieren la ODMA.
           </p>
         </div>
       )}

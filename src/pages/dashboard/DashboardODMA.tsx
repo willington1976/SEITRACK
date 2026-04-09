@@ -51,8 +51,8 @@ function useDiscrepanciasActivas(estacionId: string | null) {
         `)
         .in('estado', ['abierta', 'en_proceso'])
         .order('criticidad', { ascending: true })
-        .order('created_at', { ascending: true })
-        .limit(20)
+        .order('created_at', { ascending: false })
+        .limit(50)
       if (error) throw error
       return data ?? []
     },
@@ -366,13 +366,13 @@ export default function DashboardODMA() {
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-white/5 max-h-64 overflow-y-auto">
+              <div className="divide-y divide-white/5 max-h-96 overflow-y-auto">
                 {(discrepancias as any[]).map(d => {
                   const cr = CRITICIDAD[d.criticidad as keyof typeof CRITICIDAD] ?? CRITICIDAD.baja
                   return (
-                    <div key={d.id} className="px-4 py-3">
+                    <div key={d.id} className="px-4 py-3 hover:bg-white/2 transition-colors">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cr.dot}`}/>
                           <span className={`text-[9px] font-bold uppercase tracking-wide ${cr.text}`}>
                             {cr.label}
@@ -380,9 +380,21 @@ export default function DashboardODMA() {
                           <span className="text-[9px] text-slate-600 font-mono">
                             {(d.vehiculo as any)?.matricula}
                           </span>
+                          <span className="text-[9px] text-blue-400 font-mono">
+                            {(d.vehiculo as any)?.estacion?.codigo_iata}
+                          </span>
                         </div>
-                        <span className="text-[9px] text-blue-400 font-mono shrink-0">
-                          {(d.vehiculo as any)?.estacion?.codigo_iata}
+                        {/* Badge tipo novedad */}
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0
+                                         uppercase tracking-wide border ${
+                          d.criticidad === 'baja'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : d.criticidad === 'media'
+                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            : 'bg-red-500/10 text-red-400 border-red-500/20'
+                        }`}>
+                          {d.criticidad === 'baja' ? 'LEVE' :
+                           d.criticidad === 'media' ? 'MTO' : 'URGENTE'}
                         </span>
                       </div>
                       <p className="text-xs text-slate-300 leading-snug">{d.descripcion}</p>
