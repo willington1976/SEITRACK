@@ -1,69 +1,88 @@
 import { Link } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/services/supabase'
 import { useAuthStore } from '@/stores/auth.store'
 import { useVehiculos } from '@/hooks/useVehiculos'
 import { useKPIsEstacion, useFallasPorSistema } from '@/hooks/useReportes'
+import { Card, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { formatDate, formatKm, formatHoras, cn } from '@/lib/utils'
+import { formatDate, formatKm, formatHoras } from '@/lib/utils'
 import type { Vehiculo } from '@/core/types'
 import { EstadoVehiculo } from '@/core/enums'
 
-const estadoBadge: Record<EstadoVehiculo, { variant: 'success'|'warning'|'danger'|'info'; label: string; dot: string }> = {
-  [EstadoVehiculo.Operativo]:        { variant: 'success', label: 'OPERATIVO', dot: 'bg-emerald-500' },
-  [EstadoVehiculo.EnMantenimiento]:  { variant: 'warning', label: 'EN MTO',     dot: 'bg-amber-500' },
-  [EstadoVehiculo.FueraDeServicio]:  { variant: 'danger',  label: 'FUERA SERV', dot: 'bg-red-500' },
-  [EstadoVehiculo.Inspeccion]:       { variant: 'info',    label: 'INSPEC',    dot: 'bg-blue-500' },
+const estadoBadge: Record<EstadoVehiculo, { variant: 'success'|'warning'|'danger'|'info'; label: string }> = {
+  [EstadoVehiculo.Operativo]:        { variant: 'success', label: 'Operativo' },
+  [EstadoVehiculo.EnMantenimiento]:  { variant: 'warning', label: 'En mantenimiento' },
+  [EstadoVehiculo.FueraDeServicio]:  { variant: 'danger',  label: 'Fuera de servicio' },
+  [EstadoVehiculo.Inspeccion]:       { variant: 'info',    label: 'En inspección' },
 }
 
 function VehiculoRow({ v }: { v: Vehiculo }) {
-  const b = estadoBadge[v.estado as EstadoVehiculo] ?? { variant: 'muted' as const, label: v.estado, dot: 'bg-slate-500' }
+  const b = estadoBadge[v.estado as EstadoVehiculo] ?? { variant: 'muted' as const, label: v.estado }
   return (
     <Link
       to={`/vehiculos/${v.id}`}
-      className="flex items-center gap-4 py-3.5 px-4 hover:bg-white/5 border-b border-white/[0.03] transition-all group first:rounded-t-2xl last:rounded-b-2xl last:border-0"
+      className="flex items-center gap-3 py-3 px-3 hover:bg-gray-50 rounded-xl -mx-3 transition-colors group"
     >
-      <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 flex items-center justify-center shrink-0 shadow-inner group-hover:border-blue-500/30 transition-colors">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" className="text-slate-500 group-hover:text-blue-400 transition-colors">
-          <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.04 3H5.81l1.04-3zM19 17H5v-5h14v5z"/>
-          <circle cx="7" cy="14" r="1.5"/><circle cx="17" cy="14" r="1.5"/>
+      <div className="w-9 h-9 rounded-lg bg-sei-50 flex items-center justify-center shrink-0">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" className="text-sei-600">
+          <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm7 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+          <path d="M3 4a1 1 0 00-1 1v8a1 1 0 001 1h.5a2.5 2.5 0 015 0h3a2.5 2.5 0 015 0H17a1 1 0 001-1V9.414a1 1 0 00-.293-.707l-3.414-3.414A1 1 0 0013.586 5H3zM10 7h3.586l2 2H10V7z"/>
         </svg>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-slate-100 font-mono tracking-tight group-hover:text-blue-400 transition-colors">{v.matricula}</p>
-        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{v.modelo} · {v.anio}</p>
+        <p className="text-sm font-semibold text-gray-900 group-hover:text-sei-700 transition-colors">{v.matricula}</p>
+        <p className="text-xs text-gray-400 truncate">{v.modelo} · {v.anio}</p>
       </div>
       <div className="text-right hidden sm:block">
-        <p className="text-xs font-mono text-slate-300">{formatKm(v.kilometraje_actual)}</p>
-        <p className="text-[10px] font-mono text-slate-500">{formatHoras(v.horas_motor)}</p>
+        <p className="text-xs text-gray-600">{formatKm(v.kilometraje_actual)}</p>
+        <p className="text-[11px] text-gray-400">{formatHoras(v.horas_motor)}</p>
       </div>
-      <div className="flex items-center gap-3 w-32 justify-end">
-        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", b.dot)} />
-        <Badge variant={b.variant} className="bg-slate-950/50 border-white/5 font-bold text-[9px] tracking-widest">{b.label}</Badge>
-      </div>
+      <Badge variant={b.variant}>{b.label}</Badge>
     </Link>
   )
 }
 
+// Mini barra horizontal para gráfico de fallas
 function BarraFallas({ sistema, total, maximo }: { sistema: string; total: number; maximo: number }) {
   const pct = maximo > 0 ? Math.round((total / maximo) * 100) : 0
   return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-        <span className="text-slate-400">{sistema}</span>
-        <span className="text-slate-200 font-mono">{total} FALLAS</span>
-      </div>
-      <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+    <div className="flex items-center gap-2 text-xs">
+      <span className="w-36 text-gray-600 truncate shrink-0">{sistema}</span>
+      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.4)] transition-all duration-1000"
+          className="h-full rounded-full bg-amber-400 transition-all duration-500"
           style={{ width: `${pct}%` }}
         />
       </div>
+      <span className="w-5 text-right font-medium text-gray-700 shrink-0">{total}</span>
     </div>
   )
 }
 
 export default function DashboardEstacion() {
   const usuario = useAuthStore(s => s.usuario)
+  const estacionId = usuario?.estacion_id
+
+  const { data: novedades } = useQuery({
+    queryKey: ['novedades', 'estacion', estacionId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('discrepancias')
+        .select(`id, descripcion, sistema_afectado, criticidad, created_at,
+                 vehiculo:vehiculos!inner(matricula, estacion_id)`)
+        .eq('vehiculo.estacion_id', estacionId!)
+        .in('estado', ['abierta', 'en_proceso'])
+        .order('criticidad', { ascending: true })
+        .order('created_at', { ascending: false })
+      return data ?? []
+    },
+    enabled: !!estacionId,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
+  })
+
   const { data: vehiculos, isLoading: loadingV } = useVehiculos()
   const { data: kpis,      isLoading: loadingK } = useKPIsEstacion()
   const { data: fallas,    isLoading: loadingF } = useFallasPorSistema(usuario?.estacion_id)
@@ -71,103 +90,142 @@ export default function DashboardEstacion() {
   const maxFallas = fallas?.[0]?.total_fallas ?? 1
 
   return (
-    <div className="space-y-8 page-enter">
-      {/* Header Estilo Cockpit */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-1 h-3 bg-blue-600 rounded-full" />
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic leading-none">Station Control Node</p>
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight uppercase">
-            Dashboard Operativo
-          </h1>
-          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-[.2em] mt-1 space-x-3">
-            <span>{formatDate(new Date())}</span>
-            <span className="text-blue-500/50">·</span>
-            <span>{(usuario?.estacion as { aeropuerto?: string } | undefined)?.aeropuerto ?? 'ESTACIÓN'}</span>
-          </p>
-        </div>
+    <div className="space-y-5">
+      {/* Saludo */}
+      <div>
+        <h1 className="text-base font-semibold text-gray-900">
+          Buenos días, {usuario?.nombre_completo.split(' ')[0]}
+        </h1>
+        <p className="text-sm text-gray-400 mt-0.5">
+          {formatDate(new Date())} ·{' '}
+          {(usuario?.estacion as { aeropuerto?: string } | undefined)?.aeropuerto ?? 'Estación'}
+        </p>
       </div>
 
-      {/* KPI Widgets */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* KPIs en tiempo real */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {
-            label:  'UNIDADES OPERATIVAS',
+            label:  'Operativos',
             value:  loadingK ? '—' : `${kpis?.vehiculos_operativos ?? 0}/${kpis?.vehiculos_total ?? 0}`,
-            color:  'text-emerald-400', bar: 'bg-emerald-600'
+            color:  'text-green-600', bg: 'bg-green-50',
           },
           {
-            label:  'ÓRDENES DE TRABAJO',
+            label:  'OTs abiertas',
             value:  loadingK ? '—' : String(kpis?.ots_abiertas ?? 0),
-            color:  (kpis?.ots_alta_prioridad ?? 0) > 0 ? 'text-red-500' : 'text-slate-100',
-            bar:    (kpis?.ots_alta_prioridad ?? 0) > 0 ? 'bg-red-600' : 'bg-slate-700'
+            color:  (kpis?.ots_alta_prioridad ?? 0) > 0 ? 'text-red-600' : 'text-gray-900',
+            bg:     (kpis?.ots_alta_prioridad ?? 0) > 0 ? 'bg-red-50' : 'bg-gray-50',
           },
           {
-            label:  'INSPECCIONES HOY',
+            label:  'Inspecciones hoy',
             value:  loadingK ? '—' : String(kpis?.inspecciones_hoy ?? 0),
-            color:  'text-blue-400', bar: 'bg-blue-600'
+            color:  'text-blue-600', bg: 'bg-blue-50',
           },
           {
-            label:  'ALERTAS DE STOCK',
+            label:  'Stock bajo',
             value:  loadingK ? '—' : String(kpis?.stock_bajo ?? 0),
-            color:  (kpis?.stock_bajo ?? 0) > 0 ? 'text-amber-500' : 'text-slate-400',
-            bar:    (kpis?.stock_bajo ?? 0) > 0 ? 'bg-amber-600' : 'bg-slate-800'
+            color:  (kpis?.stock_bajo ?? 0) > 0 ? 'text-amber-600' : 'text-gray-900',
+            bg:     (kpis?.stock_bajo ?? 0) > 0 ? 'bg-amber-50' : 'bg-gray-50',
           },
         ].map(m => (
-          <div key={m.label} className="glass-panel rounded-2xl p-5 relative overflow-hidden group">
-            <div className={cn("absolute left-0 top-0 bottom-0 w-1", m.bar)} />
-            <p className={cn("text-2xl font-bold font-mono tracking-tighter", m.color)}>{m.value}</p>
-            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1.5">{m.label}</p>
+          <div key={m.label} className={`${m.bg} rounded-xl p-4`}>
+            <p className={`text-2xl font-semibold ${m.color}`}>{m.value}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{m.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Registro de Flota */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Flota */}
         <div className="lg:col-span-2">
-          <div className="glass-panel rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-white uppercase tracking-widest">Estado de Flota Asignada</p>
-                <p className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">{vehiculos ? `${vehiculos.length} UNIDADES EN RED` : 'SINCRONIZANDO...'}</p>
-              </div>
-              <Link to="/vehiculos" className="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-widest transition-colors">ACCEDER A FLOTA →</Link>
-            </div>
-            
+          <Card>
+            <CardHeader
+              title="Flota asignada"
+              subtitle={vehiculos ? `${vehiculos.length} MRE` : ''}
+              action={
+                <Link to="/vehiculos" className="text-xs text-sei-600 hover:underline">Ver todo</Link>
+              }
+            />
             {loadingV ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <Spinner size="sm" />
-                <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Indexando Unidades...</p>
-              </div>
+              <div className="flex justify-center py-6"><Spinner /></div>
             ) : (
-              <div className="divide-y divide-white/5">
+              <div className="space-y-0">
                 {vehiculos?.map(v => <VehiculoRow key={v.id} v={v} />)}
                 {!vehiculos?.length && (
-                  <p className="text-xs font-bold text-slate-600 text-center py-12 uppercase tracking-[.2em]">Sin vehículos asignados a este nodo</p>
+                  <p className="text-sm text-gray-400 text-center py-6">Sin vehículos asignados</p>
                 )}
               </div>
             )}
-          </div>
+          </Card>
         </div>
 
-        {/* Panel de Inteligencia / Acciones */}
-        <div className="space-y-6">
-          {/* Matriz de Fallas */}
-          <div className="glass-panel rounded-2xl p-6 space-y-5">
-            <div>
-              <p className="text-xs font-bold text-white uppercase tracking-widest">Matriz de Fallas</p>
-              <p className="text-[9px] text-slate-500 font-mono uppercase tracking-widest mt-0.5">Últimos 30 Ciclos</p>
-            </div>
-            
+        {/* Novedades activas */}
+        {(novedades?.length ?? 0) > 0 && (
+          <div className="lg:col-span-3">
+            <Card padding={false}>
+              <div className="px-5 pt-4 pb-3 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Novedades Activas</p>
+                  <p className="text-xs text-gray-400">{novedades?.length} discrepancia{(novedades?.length ?? 0) !== 1 ? 's' : ''} abiertas</p>
+                </div>
+                <div className="flex gap-2">
+                  {(novedades?.filter((n: any) => n.criticidad === 'alta').length ?? 0) > 0 && (
+                    <span className="text-[9px] font-bold bg-red-500/10 text-red-500
+                                     border border-red-500/20 px-2 py-1 rounded-lg animate-pulse">
+                      {novedades?.filter((n: any) => n.criticidad === 'alta').length} crítica{(novedades?.filter((n: any) => n.criticidad === 'alta').length ?? 0) > 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {(novedades?.filter((n: any) => n.criticidad === 'media').length ?? 0) > 0 && (
+                    <span className="text-[9px] font-bold bg-amber-500/10 text-amber-600
+                                     border border-amber-500/20 px-2 py-1 rounded-lg">
+                      {novedades?.filter((n: any) => n.criticidad === 'media').length} media{(novedades?.filter((n: any) => n.criticidad === 'media').length ?? 0) > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {(novedades as any[])?.map(n => {
+                  const dias = Math.floor((Date.now() - new Date(n.created_at).getTime()) / (1000*60*60*24))
+                  const CRIT: Record<string, { dot: string; text: string; label: string }> = {
+                    alta:  { dot: 'bg-red-500',   text: 'text-red-600',   label: 'CRÍTICA' },
+                    media: { dot: 'bg-amber-500', text: 'text-amber-600', label: 'MEDIA'   },
+                    baja:  { dot: 'bg-blue-500',  text: 'text-blue-600',  label: 'LEVE'    },
+                  }
+                  const cr = CRIT[n.criticidad] ?? CRIT.baja
+                  return (
+                    <div key={n.id} className="flex items-start gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors">
+                      <span className={'w-2 h-2 rounded-full shrink-0 mt-1 ' + cr.dot + (n.criticidad === 'alta' ? ' animate-pulse' : '')}/>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-800 leading-snug">{n.descripcion}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="font-mono text-[9px] text-blue-600 font-bold">{(n.vehiculo as any)?.matricula}</span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-[9px] text-gray-400 uppercase tracking-wide">{n.sistema_afectado}</span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-[9px] text-gray-400">{dias === 0 ? 'Hoy' : dias === 1 ? 'Ayer' : 'Hace ' + dias + ' días'}</span>
+                        </div>
+                      </div>
+                      <span className={'text-[9px] font-bold ' + cr.text}>{cr.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Panel derecho */}
+        <div className="space-y-4">
+          {/* Fallas por sistema */}
+          <Card>
+            <CardHeader title="Fallas últimos 30 días" subtitle="por sistema" />
             {loadingF ? (
               <div className="flex justify-center py-4"><Spinner size="sm" /></div>
             ) : !fallas?.length ? (
-              <p className="text-[10px] font-bold text-slate-700 text-center py-4 uppercase tracking-widest italic leading-relaxed border border-dashed border-white/5 rounded-xl">Cero fallas críticas reportadas en el periodo actual</p>
+              <p className="text-xs text-gray-400 text-center py-4">Sin fallas registradas</p>
             ) : (
-              <div className="space-y-4">
-                {fallas.slice(0, 5).map(f => (
+              <div className="space-y-2.5">
+                {fallas.slice(0, 6).map(f => (
                   <BarraFallas
                     key={f.sistema}
                     sistema={f.sistema}
@@ -177,32 +235,28 @@ export default function DashboardEstacion() {
                 ))}
               </div>
             )}
-          </div>
+          </Card>
 
-          {/* Acciones de Combate */}
-          <div className="glass-panel rounded-2xl p-6">
-             <p className="text-xs font-bold text-white uppercase tracking-widest mb-4">Command Center Shortcuts</p>
-             <div className="grid grid-cols-2 gap-3">
+          {/* Acciones rápidas */}
+          <Card>
+            <CardHeader title="Acciones rápidas" />
+            <div className="grid grid-cols-2 gap-2">
               {[
-                { to: '/vehiculos',        label: 'INSPEC F0', desc: 'DIARIA', color: 'hover:border-blue-500/50' },
-                { to: '/mantenimiento/nueva', label: 'GEN OT',   desc: 'MANTO',  color: 'hover:border-red-500/50' },
-                { to: '/mantenimiento',    label: 'PLANNER',   desc: 'JOBS',   color: 'hover:border-amber-500/50' },
-                { to: '/repuestos',        label: 'STOCK',     desc: 'INV',    color: 'hover:border-emerald-500/50' },
+                { to: '/vehiculos',        label: 'Inspección F0', color: 'bg-sei-50 text-sei-700' },
+                { to: '/mantenimiento/nueva', label: 'Nueva OT',   color: 'bg-blue-50 text-blue-700' },
+                { to: '/mantenimiento',    label: 'Ver OTs',        color: 'bg-amber-50 text-amber-700' },
+                { to: '/vehiculos',        label: 'Libro op.',      color: 'bg-purple-50 text-purple-700' },
               ].map(a => (
                 <Link
                   key={a.label}
                   to={a.to}
-                  className={cn(
-                    "bg-slate-950/50 border border-white/5 rounded-xl p-3 px-4 transition-all group",
-                    a.color
-                  )}
+                  className={`${a.color} rounded-xl p-3 hover:opacity-80 transition-opacity text-xs font-semibold`}
                 >
-                  <p className="text-[11px] font-bold text-slate-200 group-hover:text-blue-400 transition-colors uppercase">{a.label}</p>
-                  <p className="text-[8px] font-mono text-slate-600 group-hover:text-slate-400 transition-colors">{a.desc}</p>
+                  {a.label}
                 </Link>
               ))}
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </div>
