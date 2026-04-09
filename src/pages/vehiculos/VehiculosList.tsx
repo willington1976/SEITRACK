@@ -108,7 +108,7 @@ function VehiculoCard({ v, showEstacion }: { v: VehiculoConEstacion; showEstacio
 // ─── Vista agrupada por Regional/Estación (Jefe Nacional) ────────────────────
 
 function VistaAgrupada({ vehiculos }: { vehiculos: VehiculoConEstacion[] }) {
-  const [regionalesColapsadas, setRegionalesColapsadas] = useState<Set<string>>(new Set())
+  const [regionalesExpandidas, setRegionalesExpandidas] = useState<Set<string>>(new Set())
 
   // Agrupar: Regional → Estación → Vehículos
   const grupos = useMemo(() => {
@@ -145,7 +145,7 @@ function VistaAgrupada({ vehiculos }: { vehiculos: VehiculoConEstacion[] }) {
   }, [vehiculos])
 
   function toggleRegional(id: string) {
-    setRegionalesColapsadas(prev => {
+    setRegionalesExpandidas(prev => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
@@ -155,7 +155,7 @@ function VistaAgrupada({ vehiculos }: { vehiculos: VehiculoConEstacion[] }) {
   return (
     <div className="space-y-4">
       {grupos.map(([regId, reg]) => {
-        const colapsada    = regionalesColapsadas.has(regId)
+        const colapsada    = !regionalesExpandidas.has(regId)
         const estaciones   = Object.values(reg.estaciones)
         const totalVehiculos = estaciones.reduce((a, e) => a + e.vehiculos.length, 0)
         const operativos   = estaciones.reduce((a, e) =>

@@ -123,7 +123,6 @@ function getNavGroups(rol: Rol, pendingCount: number, pendingRecibo: number = 0)
             { to: '/',              label: 'Centro de Mando',  sublabel: 'Vista nacional',              icon: ICONS.dashboard },
             { to: '/vehiculos',     label: 'Flota MRE',        sublabel: 'Inventario nacional',         icon: ICONS.vehicle },
             { to: '/mantenimiento', label: 'Mantenimiento',    sublabel: 'OTs activas',                 icon: ICONS.wrench },
-            { to: '/repuestos',     label: 'Repuestos',        sublabel: 'Inventario nacional',         icon: ICONS.box },
           ]
         },
         {
