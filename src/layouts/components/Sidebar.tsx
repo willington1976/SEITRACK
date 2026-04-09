@@ -68,11 +68,16 @@ function getNavGroups(rol: Rol, pendingCount: number, pendingRecibo: number = 0)
       return [
         {
           items: [
-            { to: '/',              label: 'Dashboard',        sublabel: 'Estado de la estación',       icon: ICONS.dashboard },
-            { to: '/inspecciones',  label: 'Inspecciones',     sublabel: 'F1 · F2 · F3',               icon: ICONS.clipboard },
+            { to: '/',              label: 'Dashboard',        sublabel: 'Centro de control técnico',   icon: ICONS.dashboard },
             { to: '/mantenimiento', label: 'Mis OTs',          sublabel: 'Órdenes asignadas',           icon: ICONS.ot,
               badge: pendingCount > 0 ? pendingCount : undefined },
-            { to: '/repuestos',     label: 'Repuestos',        sublabel: 'Consulta de inventario',      icon: ICONS.box },
+            { to: '/inspecciones',  label: 'Inspecciones',     sublabel: 'F1 · F2 · F3',               icon: ICONS.clipboard },
+          ]
+        },
+        {
+          label: 'Mi Organización',
+          items: [
+            { to: '/personal/certificaciones', label: 'Certificaciones', sublabel: 'TME del personal ODMA', icon: ICONS.certificate },
           ]
         }
       ]
