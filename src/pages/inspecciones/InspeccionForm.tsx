@@ -269,16 +269,43 @@ export default function InspeccionForm() {
       })
 
       // ── Acciones automáticas según resultado ──────────────────────────────
+      const { supabase } = await import('@/services/supabase')
+
+      // Actualizar km y horas del vehículo
+      if (Number(km) > 0 || Number(horas) > 0) {
+        const update: Record<string, number> = {}
+        if (Number(km) > (vehiculo.kilometraje_actual || 0)) update.kilometraje_actual = Number(km)
+        if (Number(horas) > (vehiculo.horas_motor || 0)) update.horas_motor = Number(horas)
+        if (Object.keys(update).length > 0) {
+          await supabase.from('vehiculos').update(update).eq('id', vehiculo.id)
+        }
+      }
+
+      // ── Fallas con observaciones (Cat B/C/D) → discrepancia diferible ──
+      if (resultado === 'con_observaciones') {
+        const fallaItems = sistemas.flatMap(s => s.items).filter(
+          item => resultados[item.id] === ResultadoItem.Falla
+        )
+        for (const item of fallaItems) {
+          await supabase.from('discrepancias').insert({
+            vehiculo_id:      vehiculo.id,
+            reportado_por:    usuario.id,
+            sistema_afectado: item.sistema,
+            tipo_falla:       'cronica',
+            descripcion:      item.descripcion + (obsItems[item.id] ? ': ' + obsItems[item.id] : ''),
+            criticidad:       'media',
+            estado:           'abierta',
+          })
+        }
+      }
+
       if (resultado === 'rechazado' && criticos.length > 0) {
         // 1. Vehículo → FUERA DE SERVICIO inmediato (Cat A)
-        await import('@/services/supabase').then(({ supabase }) =>
-          supabase.from('vehiculos')
-            .update({ estado: 'fuera_de_servicio' })
-            .eq('id', vehiculo.id)
-        )
+        await supabase.from('vehiculos')
+          .update({ estado: 'fuera_de_servicio' })
+          .eq('id', vehiculo.id)
 
-        // 2. Crear discrepancia por cada falla crítica
-        const { supabase } = await import('@/services/supabase')
+        // 2. Crear discrepancia crítica
         const discDesc = 'Fallas detectadas en inspección ' + fase.toUpperCase() + ' - Turno ' + turno + ':\n' + criticos.map(c => '• ' + c).join('\n');
 
         const { data: disc } = await supabase.from('discrepancias').insert({
@@ -302,17 +329,6 @@ export default function InspeccionForm() {
             estado:          'abierta',
             descripcion:     `[AUTO] Corrección requerida por inspección ${fase.toUpperCase()} rechazada. Fallas: ${criticos.slice(0, 3).join(', ')}${criticos.length > 3 ? ` y ${criticos.length - 3} más` : ''}`,
           })
-        }
-      }
-
-      // Actualizar km y horas en el vehículo
-      if (Number(km) > 0 || Number(horas) > 0) {
-        const { supabase: sb } = await import('@/services/supabase')
-        const update: Record<string, number> = {}
-        if (Number(km) > vehiculo.kilometraje_actual) update.kilometraje_actual = Number(km)
-        if (Number(horas) > vehiculo.horas_motor) update.horas_motor = Number(horas)
-        if (Object.keys(update).length > 0) {
-          await sb.from('vehiculos').update(update).eq('id', vehiculo.id)
         }
       }
 
