@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router'
 import { useVehiculo } from '@/hooks/useVehiculos'
+import { useQuery } from '@tanstack/react-query'
+import { supabase as sb } from '@/services/supabase'
 import { useCrearInspeccion } from '@/hooks/useInspecciones'
 import { useAuthStore } from '@/stores/auth.store'
 import { ChecklistItemRow } from '@/components/forms/ChecklistItemRow'
@@ -127,6 +129,22 @@ export default function InspeccionForm() {
   const usuario         = useAuthStore(s => s.usuario)
 
   const { data: vehiculo, isLoading } = useVehiculo(vehiculoId!)
+
+  // Discrepancias activas del vehículo — novedades de turnos anteriores
+  const { data: discrepanciasActivas } = useQuery({
+    queryKey: ['discrepancias-activas', vehiculoId],
+    queryFn: async () => {
+      const { data } = await sb
+        .from('discrepancias')
+        .select('id, descripcion, sistema_afectado, criticidad, created_at')
+        .eq('vehiculo_id', vehiculoId!)
+        .in('estado', ['abierta', 'en_proceso'])
+        .order('created_at', { ascending: false })
+      return data ?? []
+    },
+    enabled: !!vehiculoId,
+    staleTime: 1000 * 30,
+  })
   const { mutateAsync: crearInspeccion, isPending: guardando } = useCrearInspeccion()
 
   // Fase desde query param, default cambio_turno
@@ -562,13 +580,60 @@ export default function InspeccionForm() {
         <span>Evalúa cada ítem: OK / OBS / FALLA / N/A</span>
       </div>
 
+      {/* ── Novedades de turno anterior ─────────────────────────────── */}
+      {discrepanciasActivas && discrepanciasActivas.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"/>
+            <p className="text-[9px] font-bold text-amber-400 uppercase tracking-widest">
+              ⚠ {discrepanciasActivas.length} Novedad{discrepanciasActivas.length > 1 ? 'es' : ''} activa{discrepanciasActivas.length > 1 ? 's' : ''} — turno anterior
+            </p>
+          </div>
+          {discrepanciasActivas.map((d: any) => (
+            <div key={d.id}
+              className="flex items-start gap-2 bg-slate-950/50 rounded-xl px-3 py-2.5">
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${
+                d.criticidad === 'alta' ? 'bg-red-400' : 'bg-amber-400'
+              }`}/>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-300 leading-snug">{d.descripcion}</p>
+                <p className="text-[9px] text-slate-500 uppercase tracking-wide mt-0.5">
+                  {d.sistema_afectado}
+                  {d.criticidad === 'alta' && (
+                    <span className="ml-2 text-red-400 font-bold">· CRÍTICA</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          ))}
+          <p className="text-[9px] text-slate-500 pt-1">
+            Estas novedades permanecen hasta que la ODMA las corrija y el bombero verifique el recibo.
+          </p>
+        </div>
+      )}
+
       {/* Checklist por sistemas */}
-      {sistemas.map(sistema => (
+      {sistemas.map(sistema => {
+        // Verificar si este sistema tiene discrepancias activas
+        const discSistema = (discrepanciasActivas ?? []).filter((d: any) =>
+          d.sistema_afectado?.toLowerCase().includes(sistema.sistema.toLowerCase()) ||
+          sistema.sistema.toLowerCase().includes(d.sistema_afectado?.toLowerCase() ?? '')
+        )
+
+        return (
         <div key={sistema.sistema} className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide px-1">
-              {sistema.sistema}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide px-1">
+                {sistema.sistema}
+              </h3>
+              {discSistema.length > 0 && (
+                <span className="text-[9px] font-bold bg-amber-500/20 text-amber-400
+                                 border border-amber-500/30 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                  ⚠ NOVEDAD
+                </span>
+              )}
+            </div>
             <span className="text-[11px] text-gray-400">
               {sistema.items.filter(i => resultados[i.id]).length}/{sistema.items.length}
             </span>
@@ -586,7 +651,8 @@ export default function InspeccionForm() {
             ))}
           </div>
         </div>
-      ))}
+        )
+      })}
 
       {/* Error */}
       {error && (
