@@ -357,7 +357,7 @@ export default function DashboardBombero() {
           {[
             {
               label: 'INSPEC F0',
-              desc: 'Cambio de turno',
+              desc: 'F0 — Cambio de turno',
               to: '/inspecciones',
               color: 'border-blue-500/20 bg-blue-500/5 text-blue-400',
               icon: '📋',

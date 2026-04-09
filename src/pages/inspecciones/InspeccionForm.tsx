@@ -18,7 +18,7 @@ import type { ItemInspeccion } from '@/core/types'
 
 // Etiquetas de fases
 const FASE_LABELS: Record<FaseInspeccion, string> = {
-  [FaseInspeccion.CambioDeTurno]: 'Cambio de turno',
+  [FaseInspeccion.CambioDeTurno]: 'F0 — Cambio de turno',
   [FaseInspeccion.F0]:  'Inspección F0 — Diaria',
   [FaseInspeccion.F1]:  'Inspección F1',
   [FaseInspeccion.F2]:  'Inspección F2',
