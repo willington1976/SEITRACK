@@ -14,6 +14,7 @@ const Register            = lazy(() => import('@/pages/auth/Register'))
 const DashboardNacional   = lazy(() => import('@/pages/dashboard/DashboardNacional'))
 const DashboardRegional   = lazy(() => import('@/pages/dashboard/DashboardRegional'))
 const DashboardEstacion   = lazy(() => import('@/pages/dashboard/DashboardEstacion'))
+const DashboardODMA       = lazy(() => import('@/pages/dashboard/DashboardODMA'))
 const VehiculosList       = lazy(() => import('@/pages/vehiculos/VehiculosList'))
 const VehiculoDetail      = lazy(() => import('@/pages/vehiculos/VehiculoDetail'))
 const VehiculoForm        = lazy(() => import('@/pages/vehiculos/VehiculoForm'))
@@ -57,7 +58,9 @@ function DashboardRouter() {
   if (!usuario) return <Navigate to="/login" replace />
   switch (usuario.rol as Rol) {
     case Rol.JefeNacional: return <DashboardNacional />
+    case Rol.DSNA:         return <DashboardNacional />
     case Rol.JefeRegional: return <DashboardRegional />
+    case Rol.ODMA:         return <DashboardODMA />
     default:               return <DashboardEstacion />
   }
 }
