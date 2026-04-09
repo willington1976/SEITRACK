@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { useInspecciones, useFirmarInspeccion } from '@/hooks/useInspecciones'
 import { useVehiculo } from '@/hooks/useVehiculos'
@@ -18,28 +19,30 @@ const FASE_LABEL: Record<string, string> = {
   f0: 'F0 — DIARIA', f1: 'F1', f2: 'F2', f3: 'F3',
 }
 
-function InspeccionCard({ insp, canFirmar }: { insp: Inspeccion; canFirmar: boolean }) {
+function InspeccionCard({ insp, canFirmar, compact = false }: { insp: Inspeccion; canFirmar: boolean; compact?: boolean }) {
   const { mutate: firmar, isPending } = useFirmarInspeccion()
   const rs = RESULTADO_STYLE[insp.resultado as string] ?? RESULTADO_STYLE.aprobado
 
   return (
-    <div className={`glass-panel rounded-2xl border transition-all ${
+    <div className={compact ? '' : `glass-panel rounded-2xl border transition-all ${
       insp.resultado === 'rechazado' ? 'border-red-500/20' :
       insp.resultado === 'con_observaciones' ? 'border-amber-500/20' :
       'border-white/5'
     }`}>
-      <div className="flex items-start justify-between p-4 border-b border-white/5">
+      <div className={`flex items-start justify-between ${compact ? 'px-5 py-3' : 'p-4 border-b border-white/5'}`}>
         <div className="flex items-center gap-3">
-          {/* Fecha */}
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20
-                          flex flex-col items-center justify-center shrink-0">
-            <p className="text-[9px] text-blue-400 uppercase tracking-widest leading-none">
-              {formatDate(insp.fecha).split(' ')[1] ?? ''}
-            </p>
-            <p className="text-sm font-bold text-white font-mono leading-none">
-              {new Date(insp.fecha).getDate().toString().padStart(2, '0')}
-            </p>
-          </div>
+          {/* Fecha — ocultar en modo compact */}
+          {!compact && (
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20
+                            flex flex-col items-center justify-center shrink-0">
+              <p className="text-[9px] text-blue-400 uppercase tracking-widest leading-none">
+                {formatDate(insp.fecha).split(' ')[1] ?? ''}
+              </p>
+              <p className="text-sm font-bold text-white font-mono leading-none">
+                {new Date(insp.fecha).getDate().toString().padStart(2, '0')}
+              </p>
+            </div>
+          )}
           <div>
             <p className="text-xs font-bold text-white uppercase tracking-wide">
               {FASE_LABEL[insp.fase] ?? insp.fase}
@@ -113,6 +116,171 @@ function InspeccionCard({ insp, canFirmar }: { insp: Inspeccion; canFirmar: bool
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Agrupación mensual ──────────────────────────────────────────────────────
+
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+               'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+function GruposMensuales({ inspecciones, canFirmar }: { inspecciones: any[]; canFirmar: boolean }) {
+  // Agrupar por año-mes
+  const grupos = useMemo(() => {
+    const map: Record<string, { label: string; items: any[]; esActual: boolean }> = {}
+    const hoy = new Date()
+
+    for (const i of inspecciones) {
+      const d    = new Date(i.fecha)
+      const key  = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+      const esActual = d.getFullYear() === hoy.getFullYear() && d.getMonth() === hoy.getMonth()
+      if (!map[key]) map[key] = {
+        label: MESES[d.getMonth()] + ' ' + d.getFullYear(),
+        items: [],
+        esActual,
+      }
+      map[key].items.push(i)
+    }
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]))
+  }, [inspecciones])
+
+  const [abiertos, setAbiertos] = useState<Set<string>>(() => {
+    const hoy = new Date()
+    const keyActual = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0')
+    return new Set([keyActual])
+  })
+
+  function toggle(key: string) {
+    setAbiertos(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      {grupos.map(([key, grupo]) => {
+        const open = abiertos.has(key)
+        const rechazadas  = grupo.items.filter(i => i.resultado === 'rechazado').length
+        const observadas  = grupo.items.filter(i => i.resultado === 'con_observaciones').length
+        const aprobadas   = grupo.items.filter(i => i.resultado === 'aprobado').length
+
+        return (
+          <div key={key} className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
+            {/* Cabecera del mes */}
+            <button onClick={() => toggle(key)}
+              className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/2
+                         transition-all text-left group">
+
+              {/* Indicador mes actual */}
+              {grupo.esActual && (
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse shrink-0"/>
+              )}
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold text-white uppercase tracking-wide group-hover:text-blue-300 transition-colors">
+                    {grupo.label}
+                  </p>
+                  {grupo.esActual && (
+                    <span className="text-[9px] font-bold bg-blue-500/20 text-blue-400
+                                     border border-blue-500/30 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                      MES ACTUAL
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-widest">
+                  {grupo.items.length} inspecciones registradas
+                </p>
+              </div>
+
+              {/* Mini resumen del mes */}
+              <div className="flex items-center gap-2 shrink-0">
+                {rechazadas > 0 && (
+                  <span className="text-[9px] font-bold bg-red-500/10 text-red-400
+                                   border border-red-500/20 px-2 py-1 rounded-lg">
+                    {rechazadas} ✗
+                  </span>
+                )}
+                {observadas > 0 && (
+                  <span className="text-[9px] font-bold bg-amber-500/10 text-amber-400
+                                   border border-amber-500/20 px-2 py-1 rounded-lg">
+                    {observadas} ⚠
+                  </span>
+                )}
+                <span className="text-[9px] font-mono text-slate-500">
+                  {aprobadas}/{grupo.items.length}
+                </span>
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"
+                  className={'text-slate-600 transition-transform ' + (open ? 'rotate-90' : '')}>
+                  <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 011.06 0l3.25 3.25a.75.75 0 010 1.06l-3.25 3.25a.75.75 0 01-1.06-1.06L9 8.06 6.22 5.28a.75.75 0 010-1.06z"/>
+                </svg>
+              </div>
+            </button>
+
+            {/* Inspecciones del mes — agrupadas por día */}
+            {open && (
+              <div className="border-t border-white/5">
+                <DiasDelMes inspecciones={grupo.items} canFirmar={canFirmar}/>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function DiasDelMes({ inspecciones, canFirmar }: { inspecciones: any[]; canFirmar: boolean }) {
+  // Agrupar por día
+  const dias = useMemo(() => {
+    const map: Record<string, any[]> = {}
+    for (const i of inspecciones) {
+      const key = i.fecha
+      if (!map[key]) map[key] = []
+      map[key].push(i)
+    }
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]))
+  }, [inspecciones])
+
+  return (
+    <div className="divide-y divide-white/5">
+      {dias.map(([fecha, items]) => {
+        const d = new Date(fecha + 'T12:00:00')
+        const rechazado = items.some(i => i.resultado === 'rechazado')
+        const conObs    = items.some(i => i.resultado === 'con_observaciones')
+
+        return (
+          <div key={fecha}>
+            {/* Fecha del día */}
+            <div className={'flex items-center gap-3 px-5 py-2.5 ' + (rechazado ? 'bg-red-500/5' : conObs ? 'bg-amber-500/5' : 'bg-white/1')}>
+              <div className={'w-8 h-8 rounded-lg flex flex-col items-center justify-center shrink-0 ' + (rechazado ? 'bg-red-500/20 border border-red-500/20' : conObs ? 'bg-amber-500/20 border border-amber-500/20' : 'bg-blue-500/10 border border-blue-500/10')}>
+                <p className={'text-[8px] uppercase tracking-widest leading-none ' + (rechazado ? 'text-red-400' : conObs ? 'text-amber-400' : 'text-blue-400')}>
+                  {['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d.getDay()]}
+                </p>
+                <p className={'text-sm font-bold font-mono leading-tight ' + (rechazado ? 'text-red-300' : conObs ? 'text-amber-300' : 'text-white')}>
+                  {String(d.getDate()).padStart(2, '0')}
+                </p>
+              </div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest">
+                {items.length} inspección{items.length > 1 ? 'es' : ''}
+              </p>
+              {rechazado && <span className="text-[9px] font-bold text-red-400 ml-auto">● FALLA DETECTADA</span>}
+              {!rechazado && conObs && <span className="text-[9px] font-bold text-amber-400 ml-auto">◐ CON OBSERVACIONES</span>}
+              {!rechazado && !conObs && <span className="text-[9px] font-bold text-emerald-400 ml-auto">✓ NOMINAL</span>}
+            </div>
+
+            {/* Cards de inspección del día — compactas */}
+            <div className="divide-y divide-white/5">
+              {items.map((insp: any) => (
+                <InspeccionCard key={insp.id} insp={insp} canFirmar={canFirmar} compact/>
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -212,11 +380,7 @@ export default function InspeccionList() {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {filtradas.map(i => (
-            <InspeccionCard key={i.id} insp={i} canFirmar={canFirmar} />
-          ))}
-        </div>
+        <GruposMensuales inspecciones={filtradas} canFirmar={canFirmar} />
       )}
     </div>
   )
