@@ -137,6 +137,14 @@ export default function InspeccionForm() {
   const [turno,   setTurno]   = useState<'dia' | 'tarde' | 'noche'>('dia')
   const [km,      setKm]      = useState('')
   const [horas,   setHoras]   = useState('')
+
+  // Pre-poblar km y horas con valores actuales del vehículo cuando carga
+  useEffect(() => {
+    if (vehiculo) {
+      if (!km) setKm(String(vehiculo.kilometraje_actual || ''))
+      if (!horas) setHoras(String(vehiculo.horas_motor || ''))
+    }
+  }, [vehiculo?.id])
   const [obs,     setObs]     = useState('')
 
   // Resultados: { [itemId]: ResultadoItem }
@@ -276,6 +284,17 @@ export default function InspeccionForm() {
             estado:          'abierta',
             descripcion:     `[AUTO] Corrección requerida por inspección ${fase.toUpperCase()} rechazada. Fallas: ${criticos.slice(0, 3).join(', ')}${criticos.length > 3 ? ` y ${criticos.length - 3} más` : ''}`,
           })
+        }
+      }
+
+      // Actualizar km y horas en el vehículo
+      if (Number(km) > 0 || Number(horas) > 0) {
+        const { supabase: sb } = await import('@/services/supabase')
+        const update: Record<string, number> = {}
+        if (Number(km) > vehiculo.kilometraje_actual) update.kilometraje_actual = Number(km)
+        if (Number(horas) > vehiculo.horas_motor) update.horas_motor = Number(horas)
+        if (Object.keys(update).length > 0) {
+          await sb.from('vehiculos').update(update).eq('id', vehiculo.id)
         }
       }
 
