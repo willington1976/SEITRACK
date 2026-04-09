@@ -283,16 +283,27 @@ export default function VehiculosList() {
   const estacionFiltro = esNacional ? filtroEstacionSel : estacionId
   const { data: vehiculos, isLoading } = useVehiculos(estacionFiltro)
 
+  // Obtener regional_id del usuario para filtrar estaciones del Jefe Regional
+  const regionalId = (usuario?.estacion as any)?.regional_id ?? null
+
   const { data: estaciones } = useQuery({
-    queryKey: ['estaciones', 'selector'],
+    queryKey: ['estaciones', 'selector', esNacional ? 'nacional' : regionalId],
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('estaciones')
         .select('id, nombre, codigo_iata')
-        .eq('activa', true).order('nombre')
+        .eq('activa', true)
+        .order('nombre')
+
+      // Jefe Regional: solo estaciones de su regional
+      if (!esNacional && regionalId) {
+        q = q.eq('regional_id', regionalId)
+      }
+
+      const { data } = await q
       return data ?? []
     },
-    enabled: esNacional,
+    enabled: esNacional || esRegional,
   })
 
   const filtrados = useMemo(() => (vehiculos ?? []).filter(v => {
