@@ -15,7 +15,7 @@ const RESULTADO_STYLE: Record<string, { bg: string; text: string; border: string
 }
 
 const FASE_LABEL: Record<string, string> = {
-  cambio_turno: 'CAMBIO DE TURNO',
+  cambio_turno: 'F0 — F0 — CAMBIO DE TURNO',
   f0: 'F0 — DIARIA', f1: 'F1', f2: 'F2', f3: 'F3',
 }
 
@@ -102,18 +102,25 @@ function InspeccionCard({ insp, canFirmar, compact = false }: { insp: Inspeccion
         </div>
       )}
 
-      {/* Botón firmar */}
-      {canFirmar && !insp.firma_jefe && (
+      {/* Botón firmar — solo si puede firmar, no tiene firma aún, y está aprobada */}
+      {canFirmar && !insp.firma_jefe && !compact && insp.resultado !== 'rechazado' && (
         <div className="px-4 pb-4">
           <button
             onClick={() => firmar({ inspeccionId: insp.id, vehiculoId: (insp as any).vehiculo_id })}
             disabled={isPending}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs
+            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs
                        font-bold rounded-xl transition-all uppercase tracking-widest
                        disabled:opacity-50"
           >
-            {isPending ? 'Firmando...' : '✓ Firmar y liberar al servicio'}
+            {isPending ? 'Firmando...' : '✓ Validar inspección — Jefe de Estación'}
           </button>
+        </div>
+      )}
+      {canFirmar && insp.firma_jefe && !compact && (
+        <div className="px-4 pb-3">
+          <p className="text-[9px] text-emerald-400 uppercase tracking-widest text-center">
+            ✓ Validada por Jefe de Estación
+          </p>
         </div>
       )}
     </div>
@@ -145,11 +152,7 @@ function GruposMensuales({ inspecciones, canFirmar }: { inspecciones: any[]; can
     return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]))
   }, [inspecciones])
 
-  const [abiertos, setAbiertos] = useState<Set<string>>(() => {
-    const hoy = new Date()
-    const keyActual = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0')
-    return new Set([keyActual])
-  })
+  const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
 
   function toggle(key: string) {
     setAbiertos(prev => {
@@ -296,19 +299,20 @@ export default function InspeccionList() {
   const canFirmar = rol === Rol.JefeEstacion || rol === Rol.JefeRegional || rol === Rol.JefeNacional
   const canCreate = rol === Rol.Bombero || rol === Rol.JefeEstacion || rol === Rol.ODMA
 
-  // Fases visibles por rol — igual que en el form
+  // Fases visibles por rol
   const fasesVisibles = rol === Rol.Bombero
     ? [FaseInspeccion.CambioDeTurno, FaseInspeccion.F0]
     : rol === Rol.ODMA
     ? [FaseInspeccion.F1, FaseInspeccion.F2, FaseInspeccion.F3]
     : Object.values(FaseInspeccion)
 
-  const faseFiltro = fasesVisibles[0]
+  const [faseFiltro, setFaseFiltro] = useState<string>('todas')
 
-  // Filtrar inspecciones según fases visibles del rol
-  const filtradas = inspecciones?.filter(i =>
-    fasesVisibles.includes(i.fase as FaseInspeccion)
-  )
+  // Filtrar por fase seleccionada
+  const filtradas = inspecciones?.filter(i => {
+    if (faseFiltro !== 'todas' && i.fase !== faseFiltro) return false
+    return fasesVisibles.includes(i.fase as FaseInspeccion)
+  })
 
   // URL para nueva inspección según rol
   function urlNuevaInspeccion() {
@@ -352,15 +356,25 @@ export default function InspeccionList() {
         )}
       </div>
 
-      {/* Filtros de fase — solo los del rol */}
+      {/* Filtros funcionales por fase */}
       <div className="flex gap-1.5 flex-wrap">
+        <button
+          onClick={() => setFaseFiltro('todas')}
+          className={'text-[9px] font-bold px-3 py-1.5 rounded-lg border uppercase tracking-widest transition-all ' +
+            (faseFiltro === 'todas'
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20')}>
+          TODAS
+        </button>
         {fasesVisibles.map(f => (
-          <span key={f}
-            className="text-[9px] font-bold px-3 py-1.5 rounded-lg border
-                       bg-blue-500/10 text-blue-400 border-blue-500/20
-                       uppercase tracking-widest">
+          <button key={f}
+            onClick={() => setFaseFiltro(f)}
+            className={'text-[9px] font-bold px-3 py-1.5 rounded-lg border uppercase tracking-widest transition-all ' +
+              (faseFiltro === f
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10')}>
             {FASE_LABEL[f] ?? f}
-          </span>
+          </button>
         ))}
       </div>
 
