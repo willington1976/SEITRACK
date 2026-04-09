@@ -57,6 +57,29 @@ function useOTsEstacion(estacionId: string) {
   })
 }
 
+function useNovedadesEstacion(estacionId: string) {
+  return useQuery({
+    queryKey: ['novedades', 'estacion', estacionId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('discrepancias')
+        .select(`
+          id, descripcion, sistema_afectado, criticidad, estado, created_at,
+          vehiculo:vehiculos!inner(id, matricula, modelo, estacion_id)
+        `)
+        .eq('vehiculo.estacion_id', estacionId)
+        .in('estado', ['abierta', 'en_proceso'])
+        .order('criticidad', { ascending: true })
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!estacionId,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
+  })
+}
+
 function useInspeccionesEstacion(estacionId: string) {
   return useQuery({
     queryKey: ['inspecciones', 'estacion', estacionId],
@@ -110,6 +133,11 @@ export default function DrilldownEstacion() {
   const { data: vehiculos, isLoading: loadingV }   = useVehiculosEstacion(estacionId!)
   const { data: ots,       isLoading: loadingOT }  = useOTsEstacion(estacionId!)
   const { data: insp,      isLoading: loadingInsp } = useInspeccionesEstacion(estacionId!)
+  const { data: novedades, isLoading: loadingNov  } = useNovedadesEstacion(estacionId!)
+
+  const novedadesCriticas = novedades?.filter(n => n.criticidad === 'alta').length ?? 0
+  const novedadesMedia    = novedades?.filter(n => n.criticidad === 'media').length ?? 0
+  const novedadesTotal    = novedades?.length ?? 0
 
   const regional  = estacion?.regional as { id: string; nombre: string; codigo: string } | null
   const operativos = vehiculos?.filter(v => v.estado === 'operativo').length ?? 0
@@ -180,11 +208,10 @@ export default function DrilldownEstacion() {
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Flota MRE',      value: total,       color: 'text-white' },
-          { label: 'Operativos',     value: operativos,  color: 'text-emerald-400' },
-          { label: 'OTs Abiertas',   value: ots?.length ?? '—',
-            color: (ots?.length ?? 0) > 0 ? 'text-red-400' : 'text-slate-400' },
-          { label: 'Disponibilidad', value: `${disp}%`,  color: dispColor },
+          { label: 'Flota MRE',      value: total,             color: 'text-white' },
+          { label: 'Operativos',     value: operativos,        color: 'text-emerald-400' },
+          { label: 'Novedades',      value: novedadesTotal,    color: novedadesCriticas > 0 ? 'text-red-400' : novedadesMedia > 0 ? 'text-amber-400' : novedadesTotal > 0 ? 'text-blue-400' : 'text-slate-500' },
+          { label: 'Disponibilidad', value: disp + '%',        color: dispColor },
         ].map(m => (
           <div key={m.label} className="glass-panel rounded-2xl p-4 border border-white/5">
             <p className="text-[9px] font-semibold tracking-widest uppercase text-slate-500 mb-2">{m.label}</p>
@@ -275,6 +302,69 @@ export default function DrilldownEstacion() {
           )}
         </div>
       </div>
+
+      {/* Novedades activas */}
+      {novedadesTotal > 0 && (
+        <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
+          <div className="px-4 py-3.5 border-b border-white/5 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] font-semibold tracking-widest uppercase text-slate-500 mb-0.5">
+                Vigilancia continua
+              </p>
+              <p className="text-sm font-semibold text-white">
+                Novedades Activas · {novedadesTotal}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {novedadesCriticas > 0 && (
+                <span className="text-[9px] font-bold bg-red-500/10 text-red-400
+                                 border border-red-500/20 px-2 py-1 rounded-lg animate-pulse">
+                  {novedadesCriticas} crítica{novedadesCriticas > 1 ? 's' : ''}
+                </span>
+              )}
+              {novedadesMedia > 0 && (
+                <span className="text-[9px] font-bold bg-amber-500/10 text-amber-400
+                                 border border-amber-500/20 px-2 py-1 rounded-lg">
+                  {novedadesMedia} media{novedadesMedia > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          </div>
+          {loadingNov ? (
+            <div className="flex justify-center py-6"><Spinner size="sm"/></div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {(novedades as any[]).map(n => {
+                const CRIT: Record<string, { dot: string; text: string; bg: string; border: string; label: string }> = {
+                  alta:  { dot: 'bg-red-400',   text: 'text-red-400',   bg: 'bg-red-500/10',   border: 'border-red-500/20',   label: 'CRÍTICA' },
+                  media: { dot: 'bg-amber-400', text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', label: 'MEDIA'   },
+                  baja:  { dot: 'bg-blue-400',  text: 'text-blue-400',  bg: 'bg-blue-500/10',  border: 'border-blue-500/20',  label: 'LEVE'    },
+                }
+                const cr = CRIT[n.criticidad] ?? CRIT.baja
+                const dias = Math.floor((Date.now() - new Date(n.created_at).getTime()) / (1000 * 60 * 60 * 24))
+                return (
+                  <div key={n.id} className="flex items-start gap-3 px-4 py-3 hover:bg-white/2 transition-colors">
+                    <span className={'w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ' + cr.dot + (n.criticidad === 'alta' ? ' animate-pulse' : '')}/>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-200 leading-snug">{n.descripcion}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="font-mono text-[9px] text-blue-400">{(n.vehiculo as any)?.matricula}</span>
+                        <span className="text-slate-700">·</span>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-wide">{n.sistema_afectado}</span>
+                        <span className="text-slate-700">·</span>
+                        <span className="text-[9px] text-slate-600">{dias === 0 ? 'Hoy' : dias === 1 ? 'Ayer' : 'Hace ' + dias + ' días'}</span>
+                      </div>
+                    </div>
+                    <span className={'text-[9px] font-bold px-2 py-1 rounded-lg border shrink-0 uppercase tracking-wide ' + cr.bg + ' ' + cr.text + ' ' + cr.border}>
+                      {cr.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Inspecciones */}
       <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
