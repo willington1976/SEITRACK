@@ -1,285 +1,440 @@
+// ─── Certificaciones TME — Organización de Mantenimiento Aprobada ─────────────
+// ODMA registra sus técnicos certificados
+// DSNA y Jefe Nacional auditan el estado de vigencia
+
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/services/supabase'
 import { useAuthStore } from '@/stores/auth.store'
-import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
-import { formatDate, cn } from '@/lib/utils'
-import { generarPDFCertificaciones } from '@/lib/pdf'
-import type { CertPersonal } from '@/lib/pdf'
 import { Rol } from '@/core/enums'
+import { formatDate } from '@/lib/utils'
 
-interface CertRow {
-  id: string; nombre_completo: string; email: string
-  estacion_nombre: string; codigo_iata: string; regional_nombre: string
-  categoria: string; numero_certificado: string; programa_mto: string
-  fecha_emision: string; fecha_vencimiento: string; dias_restantes: number
-  activo: boolean
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+
+interface CertTME {
+  id:               string
+  nombre_tecnico:   string
+  categoria:        'TME_I' | 'TME_III'
+  numero_cert:      string
+  fecha_emision:    string
+  fecha_vencimiento:string
+  registrado_por:   string
+  activo:           boolean
 }
 
-function useCertificaciones() {
-  const usuario    = useAuthStore(s => s.usuario)
-  const esNacional = usuario?.rol === Rol.JefeNacional || usuario?.rol === Rol.DSNA
+// ─── Semáforo de vigencia ─────────────────────────────────────────────────────
+
+function getEstadoVigencia(fechaVenc: string) {
+  const hoy   = new Date()
+  const venc  = new Date(fechaVenc)
+  const dias  = Math.ceil((venc.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
+
+  if (dias < 0)   return { color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    dot: 'bg-red-400',    label: 'VENCIDO',         dias }
+  if (dias <= 30) return { color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  dot: 'bg-amber-400',  label: 'PRÓXIMO A VENCER', dias }
+  return              { color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', dot: 'bg-emerald-400', label: 'VIGENTE',          dias }
+}
+
+// ─── Hooks ────────────────────────────────────────────────────────────────────
+
+function useCertificaciones(soloMias: boolean, usuarioId: string) {
   return useQuery({
-    queryKey: ['certificaciones', usuario?.estacion_id],
+    queryKey: ['certificaciones', soloMias, usuarioId],
     queryFn: async () => {
       let q = supabase
-        .from('certificaciones_por_vencer')
-        .select('*')
-      if (!esNacional) {
-        q = q.eq('estacion_nombre',
-          (usuario?.estacion as { nombre?: string } | undefined)?.nombre ?? '')
-      }
-      const { data, error } = await q.order('dias_restantes')
+        .from('certificaciones_tme')
+        .select(`*, registrado_usuario:usuarios!certificaciones_tme_registrado_por_fkey(nombre_completo)`)
+        .eq('activo', true)
+        .order('fecha_vencimiento', { ascending: true })
+
+      if (soloMias) q = q.eq('registrado_por', usuarioId)
+
+      const { data, error } = await q
       if (error) throw error
-      return (data ?? []) as CertRow[]
+      return (data ?? []) as (CertTME & { registrado_usuario: { nombre_completo: string } })[]
     },
+    staleTime: 1000 * 60,
   })
 }
 
-function useCertTodas() {
-  return useQuery({
-    queryKey: ['certificaciones', 'todas'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('certificaciones')
-        .select(`
-          *,
-          usuario:usuarios(nombre_completo, email,
-            estacion:estaciones(nombre, codigo_iata,
-              regional:regionales(nombre)))
-        `)
-        .order('fecha_vencimiento')
-      if (error) throw error
-      return data
-    },
-  })
+// ─── Formulario ───────────────────────────────────────────────────────────────
+
+const INPUT = `w-full bg-slate-950 border border-white/5 rounded-xl px-3 py-2.5
+  text-sm text-slate-200 placeholder-slate-600
+  focus:outline-none focus:ring-1 focus:ring-blue-500/30`
+
+const LABEL = `block text-[9px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5`
+
+interface FormData {
+  nombre_tecnico:    string
+  categoria:         'TME_I' | 'TME_III'
+  numero_cert:       string
+  fecha_emision:     string
+  fecha_vencimiento: string
 }
 
-const diasColorCfg = {
-  vencido: 'bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.2)]',
-  critico: 'bg-amber-500/10 text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.2)]',
-  nominal: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-}
-
-function diasBadge(dias: number) {
-  if (dias <= 0)  return { label: 'LICENSE EXPIRED', color: diasColorCfg.vencido, bar: 'bg-red-600' }
-  if (dias <= 30) return { label: `${dias}D REMAINING`, color: diasColorCfg.critico, bar: 'bg-amber-600' }
-  return { label: `${dias}D NOMINAL`, color: diasColorCfg.nominal, bar: 'bg-emerald-600' }
-}
-
-export default function CertificacionesList() {
-  const usuario    = useAuthStore(s => s.usuario)
-  const esNacional = usuario?.rol === Rol.JefeNacional || usuario?.rol === Rol.DSNA
-  const { data: porVencer, isLoading }  = useCertificaciones()
-  const { data: todas }                 = useCertTodas()
-  const qc = useQueryClient()
-
-  const [mostrarForm, setMostrarForm] = useState(false)
-  const [form, setForm] = useState({
-    usuario_id: '', categoria: 'A', numero_certificado: '',
-    programa_mto: 'PM_SERIE_T', fecha_emision: '', fecha_vencimiento: '',
-    observaciones: '',
+function FormularioCert({
+  inicial, onGuardar, onCancelar
+}: {
+  inicial?: Partial<FormData>
+  onGuardar: (data: FormData) => Promise<void>
+  onCancelar: () => void
+}) {
+  const [form, setForm] = useState<FormData>({
+    nombre_tecnico:    inicial?.nombre_tecnico    ?? '',
+    categoria:         inicial?.categoria         ?? 'TME_I',
+    numero_cert:       inicial?.numero_cert       ?? '',
+    fecha_emision:     inicial?.fecha_emision     ?? '',
+    fecha_vencimiento: inicial?.fecha_vencimiento ?? '',
   })
+  const [guardando, setGuardando] = useState(false)
+  const [error,     setError]     = useState('')
 
-  const { mutate: crearCert, isPending: creando } = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from('certificaciones').insert({
-        ...form, emitido_por: 'UAEAC', activo: true,
-      })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['certificaciones'] })
-      setMostrarForm(false)
-      setForm({ usuario_id: '', categoria: 'A', numero_certificado: '',
-        programa_mto: 'PM_SERIE_T', fecha_emision: '', fecha_vencimiento: '', observaciones: '' })
-    },
-  })
-
-  function handlePDF() {
-    if (!todas || !usuario) return
-    const porPersona = new Map<string, CertPersonal>()
-    for (const c of todas) {
-      const u = c.usuario as any
-      if (!u) continue
-      const key = c.usuario_id
-      if (!porPersona.has(key)) {
-        porPersona.set(key, {
-          nombre_completo: u.nombre_completo,
-          email:           u.email,
-          rol:             '',
-          estacion:        u.estacion?.nombre ?? '',
-          regional:        u.estacion?.regional?.nombre ?? '',
-          certificaciones: [],
-        })
-      }
-      porPersona.get(key)!.certificaciones.push({
-        categoria:        c.categoria,
-        numero:           c.numero_certificado,
-        programa:         c.programa_mto,
-        emision:          c.fecha_emision,
-        vencimiento:      c.fecha_vencimiento,
-        diasRestantes:    Math.floor((new Date(c.fecha_vencimiento).getTime() - Date.now()) / 86400000),
-      })
-    }
-    generarPDFCertificaciones([...porPersona.values()], usuario.nombre_completo)
+  function set(k: keyof FormData, v: string) {
+    setForm(p => ({ ...p, [k]: v }))
   }
 
-  const vencidas  = porVencer?.filter(c => c.dias_restantes <= 0).length ?? 0
-  const criticas  = porVencer?.filter(c => c.dias_restantes > 0 && c.dias_restantes <= 30).length ?? 0
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.nombre_tecnico || !form.numero_cert || !form.fecha_emision || !form.fecha_vencimiento) {
+      setError('Todos los campos son obligatorios')
+      return
+    }
+    setGuardando(true)
+    setError('')
+    try {
+      await onGuardar(form)
+    } catch (e: any) {
+      setError(e?.message ?? 'Error al guardar')
+    } finally {
+      setGuardando(false)
+    }
+  }
 
   return (
-    <div className="space-y-6 page-enter">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2">
+          <label className={LABEL}>Nombre del técnico *</label>
+          <input type="text" value={form.nombre_tecnico}
+            onChange={e => set('nombre_tecnico', e.target.value)}
+            placeholder="Nombre completo del técnico certificado"
+            className={INPUT}/>
+        </div>
+
         <div>
-          <div className="flex items-center gap-2 mb-1">
-             <div className="w-1 h-3 bg-amber-600 rounded-full" />
-             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic leading-none">Personnel Compliance Logs</p>
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight uppercase">Certificaciones TME</h1>
-          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-[.2em] mt-1 space-x-3">
-             <span>REF: MANUAL GSAN-4.1-05-01</span>
-             {vencidas > 0 && <span className="text-red-500 font-bold underline decoration-red-500/20 decoration-2 underline-offset-4 tracking-widest">[{vencidas} VENCIDAS]</span>}
-          </p>
+          <label className={LABEL}>Categoría TME *</label>
+          <select value={form.categoria}
+            onChange={e => set('categoria', e.target.value as any)}
+            className={INPUT}>
+            <option value="TME_I">TME I — Técnico ejecutor</option>
+            <option value="TME_III">TME III — Jefe de Mantenimiento</option>
+          </select>
         </div>
-        
-        <div className="flex gap-2">
-          {esNacional && (
-            <button onClick={handlePDF}
-              className="px-6 py-3 bg-slate-900 border border-white/5 text-slate-400 text-[11px] font-bold rounded-2xl hover:text-white hover:bg-white/5 transition-all uppercase tracking-widest">
-              Exportar PDF
-            </button>
-          )}
-          {esNacional && (
-            <button onClick={() => setMostrarForm(v => !v)}
-              className="px-6 py-3 bg-blue-600 text-white text-[11px] font-bold rounded-2xl hover:bg-blue-500 transition-all uppercase tracking-widest shadow-xl shadow-blue-600/20 border border-white/10">
-              New License +
-            </button>
-          )}
+
+        <div>
+          <label className={LABEL}>Número de certificado *</label>
+          <input type="text" value={form.numero_cert}
+            onChange={e => set('numero_cert', e.target.value)}
+            placeholder="TME-2024-000001"
+            className={`${INPUT} font-mono`}/>
+        </div>
+
+        <div>
+          <label className={LABEL}>Fecha de emisión *</label>
+          <input type="date" value={form.fecha_emision}
+            onChange={e => set('fecha_emision', e.target.value)}
+            className={INPUT}/>
+        </div>
+
+        <div>
+          <label className={LABEL}>Fecha de vencimiento *</label>
+          <input type="date" value={form.fecha_vencimiento}
+            onChange={e => set('fecha_vencimiento', e.target.value)}
+            className={INPUT}/>
         </div>
       </div>
 
-      {/* Resumen Alertas Cockpit */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { l: 'TOTAL EXPIRED', v: vencidas, c: 'text-red-500', bar: 'bg-red-600', glow: 'shadow-[0_0_15px_rgba(239,68,68,0.15)]' },
-          { l: 'WARNING 30D',   v: criticas, c: 'text-amber-500', bar: 'bg-amber-600', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.15)]' },
-          { l: 'SYSTEM ALERTS', v: porVencer?.length ?? 0, c: 'text-slate-400', bar: 'bg-slate-700', glow: '' },
-        ].map(m => (
-          <div key={m.l} className={cn("glass-panel rounded-2xl p-6 relative overflow-hidden", m.glow)}>
-             <div className={cn("absolute left-0 top-0 bottom-0 w-1", m.bar)} />
-             <p className={cn("text-3xl font-mono font-bold leading-none", m.c)}>{isLoading ? '—' : m.v}</p>
-             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">{m.l}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Formulario Certificación Aero */}
-      {mostrarForm && (
-        <div className="glass-panel rounded-2xl p-8 border-blue-500/20 space-y-6 animate-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center justify-between border-b border-white/5 pb-4">
-             <div>
-                <h2 className="text-lg font-bold text-white uppercase tracking-tight">Registro de Nueva Licencia</h2>
-                <p className="text-[9px] text-slate-500 font-mono uppercase tracking-[.2em]">Compliance Database Entry</p>
-             </div>
-             <button onClick={() => setMostrarForm(false)} className="text-slate-500 hover:text-white transition-all text-xs font-bold uppercase tracking-widest">Abortar [X]</button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            {[
-              { k: 'numero_certificado', l: 'Número de Licencia Certificada', type: 'text', placeholder: 'TME-XXXX-XXX' },
-              { k: 'fecha_emision',      l: 'Fecha de Emisión de UAEAC', type: 'date', placeholder: '' },
-              { k: 'fecha_vencimiento',  l: 'Fecha de Vencimiento Legal', type: 'date', placeholder: '' },
-              { k: 'observaciones',      l: 'Comentarios de Discrepancia / Validez', type: 'text', placeholder: 'REGISTRE NOVEDADES...' },
-            ].map(f => (
-              <div key={f.k} className="space-y-1.5">
-                <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">{f.l}</label>
-                <input type={f.type} placeholder={f.placeholder}
-                  value={(form as any)[f.k]}
-                  onChange={e => setForm(p => ({ ...p, [f.k]: e.target.value }))}
-                  className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3 text-sm text-blue-400 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/30 uppercase"/>
-              </div>
-            ))}
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Categoría Técnica TME</label>
-              <select value={form.categoria}
-                onChange={e => setForm(p => ({ ...p, categoria: e.target.value }))}
-                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3 text-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30">
-                {['A','B','C','D'].map(c => <option key={c} value={c} className="bg-slate-900">CATEGORÍA {c}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-1">Programa Mantenimiento / Flota</label>
-              <select value={form.programa_mto}
-                onChange={e => setForm(p => ({ ...p, programa_mto: e.target.value }))}
-                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-3 text-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/30">
-                <option value="PM_SERIE_T" className="bg-slate-900">OSHKOSH SERIE T</option>
-                <option value="PM_S1500" className="bg-slate-900">OSHKOSH STRIKER 1500</option>
-                <option value="PM_P4X4" className="bg-slate-900">ROSENBAUER PANTHER 4×4</option>
-              </select>
-            </div>
-          </div>
-          
-          <div className="pt-4">
-             <button onClick={() => crearCert()} disabled={creando}
-               className="w-full py-4 bg-blue-600 text-white rounded-2xl text-[11px] font-bold hover:bg-blue-500 disabled:opacity-50 transition-all uppercase tracking-widest shadow-xl shadow-blue-600/20 border border-white/10">
-               {creando ? 'SYNCHRONIZING...' : 'AUTORIZAR Y GUARDAR REGISTRO'}
-             </button>
-          </div>
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5
+                        text-sm text-red-400">
+          {error}
         </div>
       )}
 
-      {/* Lista de Discrepancias / Certificaciones por vencer Aero */}
-      <div className="glass-panel border-white/5 rounded-2xl overflow-hidden">
-        <div className="px-6 py-5 border-b border-white/5 bg-white/5">
-          <h2 className="text-sm font-bold text-white uppercase tracking-tight">Registro de Alertas de Vigencia</h2>
-          <p className="text-[9px] text-slate-500 font-mono uppercase tracking-[.25em] mt-1 italic">Vencimientos Próximos o Activos</p>
+      <div className="flex gap-2 pt-2">
+        <button type="button" onClick={onCancelar}
+          className="flex-1 py-2.5 border border-white/10 rounded-xl text-xs
+                     text-slate-400 hover:bg-white/5 transition-all uppercase tracking-widest font-bold">
+          Cancelar
+        </button>
+        <button type="submit" disabled={guardando}
+          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl
+                     text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-40">
+          {guardando ? 'Guardando...' : 'Guardar Certificación'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
+export default function CertificacionesList() {
+  const qc      = useQueryClient()
+  const usuario = useAuthStore(s => s.usuario)
+  const rol     = usuario?.rol as Rol
+
+  const esODMA     = rol === Rol.ODMA
+  const puedeVer   = esODMA || rol === Rol.DSNA || rol === Rol.JefeNacional || rol === Rol.JefeRegional
+
+  const [mostrarForm, setMostrarForm] = useState(false)
+  const [editando,    setEditando]    = useState<CertTME | null>(null)
+  const [filtro,      setFiltro]      = useState<'todos' | 'vigentes' | 'vencidos' | 'proximos'>('todos')
+
+  const { data: certs, isLoading } = useCertificaciones(esODMA, usuario?.id ?? '')
+
+  // Filtrar según selector
+  const certsFiltradas = (certs ?? []).filter(c => {
+    const est = getEstadoVigencia(c.fecha_vencimiento)
+    if (filtro === 'vigentes')  return est.dias > 30
+    if (filtro === 'proximos')  return est.dias >= 0 && est.dias <= 30
+    if (filtro === 'vencidos')  return est.dias < 0
+    return true
+  })
+
+  // KPIs
+  const total    = certs?.length ?? 0
+  const vigentes = certs?.filter(c => getEstadoVigencia(c.fecha_vencimiento).dias > 30).length ?? 0
+  const proximos = certs?.filter(c => { const e = getEstadoVigencia(c.fecha_vencimiento); return e.dias >= 0 && e.dias <= 30 }).length ?? 0
+  const vencidos = certs?.filter(c => getEstadoVigencia(c.fecha_vencimiento).dias < 0).length ?? 0
+
+  async function handleGuardar(data: FormData) {
+    await supabase.from('certificaciones_tme').insert({
+      ...data,
+      registrado_por: usuario!.id,
+    })
+    qc.invalidateQueries({ queryKey: ['certificaciones'] })
+    setMostrarForm(false)
+  }
+
+  async function handleEditar(id: string, data: FormData) {
+    await supabase.from('certificaciones_tme').update(data).eq('id', id)
+    qc.invalidateQueries({ queryKey: ['certificaciones'] })
+    setEditando(null)
+  }
+
+  async function handleEliminar(id: string) {
+    await supabase.from('certificaciones_tme').update({ activo: false }).eq('id', id)
+    qc.invalidateQueries({ queryKey: ['certificaciones'] })
+  }
+
+  if (!puedeVer) return (
+    <p className="text-slate-500 text-sm text-center py-16">Sin acceso a este módulo</p>
+  )
+
+  return (
+    <div className="relative space-y-5">
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 blur-[120px] pointer-events-none"/>
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-[9px] font-semibold tracking-widest uppercase text-blue-400/70 mb-1">
+            Cap. VII · GSAN-4.1.05-01 · UAEAC
+          </p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            CERTIFICACIONES TME
+          </h1>
+          <p className="text-slate-400 text-xs mt-1">
+            {esODMA
+              ? 'Personal técnico certificado de su organización'
+              : 'Auditoría de habilitaciones del personal ODMA'}
+          </p>
         </div>
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-4">
-             <Spinner />
-             <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Escaneando Personal...</p>
+        {esODMA && !mostrarForm && (
+          <button onClick={() => setMostrarForm(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500
+                       text-white text-xs font-bold rounded-xl uppercase tracking-widest
+                       transition-all shadow-lg shadow-blue-600/20">
+            + Registrar Técnico
+          </button>
+        )}
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { l: 'Total técnicos',      v: total,    c: 'text-white',         f: 'todos' },
+          { l: 'Certificados vigentes', v: vigentes, c: 'text-emerald-400', f: 'vigentes' },
+          { l: 'Próximos a vencer',   v: proximos, c: proximos > 0 ? 'text-amber-400' : 'text-slate-600', f: 'proximos' },
+          { l: 'Vencidos',            v: vencidos, c: vencidos > 0 ? 'text-red-400' : 'text-slate-600',   f: 'vencidos' },
+        ].map(m => (
+          <button key={m.l}
+            onClick={() => setFiltro(m.f as any)}
+            className={`glass-panel rounded-xl border p-4 text-center transition-all
+                       hover:border-white/10 ${filtro === m.f ? 'border-blue-500/30' : 'border-white/5'}`}>
+            <p className={`text-3xl font-bold font-mono ${m.c}`}>{m.v}</p>
+            <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">{m.l}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Formulario nuevo */}
+      {mostrarForm && (
+        <div className="glass-panel rounded-2xl border border-blue-500/20 p-5">
+          <p className="text-[9px] font-bold text-blue-400/70 uppercase tracking-widest mb-4">
+            Registrar nuevo técnico certificado
+          </p>
+          <FormularioCert
+            onGuardar={handleGuardar}
+            onCancelar={() => setMostrarForm(false)}/>
+        </div>
+      )}
+
+      {/* Lista */}
+      <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+          <div>
+            <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest mb-0.5">
+              Personal técnico ODMA
+            </p>
+            <p className="text-sm font-bold text-white">
+              {certsFiltradas.length} registro{certsFiltradas.length !== 1 ? 's' : ''}
+            </p>
           </div>
-        ) : !porVencer?.length ? (
-          <div className="py-16 text-center">
-             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[.25em]">Personal con Licencia Nominal</p>
+          {/* Filtro rápido */}
+          <div className="flex gap-1">
+            {[
+              { k: 'todos',    l: 'Todos' },
+              { k: 'vigentes', l: 'Vigentes' },
+              { k: 'proximos', l: 'Por vencer' },
+              { k: 'vencidos', l: 'Vencidos' },
+            ].map(f => (
+              <button key={f.k}
+                onClick={() => setFiltro(f.k as any)}
+                className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wide
+                           transition-all ${filtro === f.k
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-500 hover:text-slate-300'}`}>
+                {f.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-10"><Spinner /></div>
+        ) : !certsFiltradas.length ? (
+          <div className="text-center py-12">
+            <p className="text-slate-500 text-sm uppercase tracking-widest">
+              {filtro === 'todos'
+                ? esODMA
+                  ? 'No has registrado técnicos aún'
+                  : 'Sin certificaciones registradas por la ODMA'
+                : `Sin técnicos en estado "${filtro}"`}
+            </p>
+            {esODMA && filtro === 'todos' && (
+              <button onClick={() => setMostrarForm(true)}
+                className="mt-3 text-blue-400 text-xs hover:text-blue-300 uppercase tracking-widest">
+                + Registrar primer técnico
+              </button>
+            )}
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
-            {porVencer.map(c => {
-              const db = diasBadge(c.dias_restantes)
-              return (
-                <div key={c.id}
-                  className={cn(
-                    "flex flex-col sm:flex-row sm:items-center gap-4 px-6 py-4 transition-all hover:bg-white/5 relative overflow-hidden",
-                    c.dias_restantes <= 0 ? 'bg-red-500/5' : ''
-                  )}>
-                  <div className={cn("absolute left-0 top-0 bottom-0 w-1", db.bar)} />
-                  
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <p className="text-sm font-bold text-slate-200 uppercase tracking-tight truncate">{c.nombre_completo}</p>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 font-mono uppercase">
-                       <span className="text-blue-500 font-bold">{c.codigo_iata}</span>
-                       <span className="w-1 h-1 rounded-full bg-slate-700" />
-                       <span>{c.estacion_nombre}</span>
-                       <span className="w-1 h-1 rounded-full bg-slate-700" />
-                       <span className="text-slate-400">CERT: {c.numero_certificado}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between sm:justify-end gap-6 shrink-0">
-                    <div className="text-right space-y-1">
-                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">CAT {c.categoria} · {c.programa_mto}</p>
-                       <p className="text-[10px] text-slate-600 font-mono">EXPIRY: {formatDate(c.fecha_vencimiento)}</p>
-                    </div>
-                    <Badge className={cn("px-3 py-1.5 font-bold text-[9px] border uppercase tracking-widest whitespace-nowrap", db.color)}>
-                       {db.label}
-                    </Badge>
-                  </div>
-                </div>
-              )
-            })}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="border-b border-white/5">
+                <tr>
+                  {['Técnico', 'Categoría', 'N° Certificado', 'Emisión', 'Vencimiento', 'Estado', ''].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-[9px] font-bold
+                                          text-slate-500 uppercase tracking-widest whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {certsFiltradas.map(c => {
+                  const est = getEstadoVigencia(c.fecha_vencimiento)
+                  const editandoEste = editando?.id === c.id
+
+                  return editandoEste ? (
+                    <tr key={c.id}>
+                      <td colSpan={7} className="px-4 py-4">
+                        <FormularioCert
+                          inicial={c}
+                          onGuardar={(data) => handleEditar(c.id, data)}
+                          onCancelar={() => setEditando(null)}/>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={c.id} className="hover:bg-white/2 transition-colors">
+                      <td className="px-4 py-3.5">
+                        <p className="font-semibold text-slate-200">{c.nombre_tecnico}</p>
+                        {!esODMA && (
+                          <p className="text-[10px] text-slate-600 mt-0.5">
+                            ODMA
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={`text-[9px] font-bold px-2 py-1 rounded-lg border uppercase
+                                         tracking-wide ${c.categoria === 'TME_III'
+                          ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                          : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                          {c.categoria.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 font-mono text-slate-300 text-[10px]">
+                        {c.numero_cert}
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap">
+                        {formatDate(c.fecha_emision)}
+                      </td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <span className={`font-mono font-semibold ${est.color}`}>
+                          {formatDate(c.fecha_vencimiento)}
+                        </span>
+                        <p className="text-[9px] text-slate-600 mt-0.5">
+                          {est.dias < 0
+                            ? `Venció hace ${Math.abs(est.dias)} días`
+                            : `Vence en ${est.dias} días`}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border
+                                         w-fit ${est.bg} ${est.border}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${est.dot} ${
+                            est.dias > 30 ? 'animate-pulse' : ''
+                          }`}/>
+                          <span className={`text-[9px] font-bold uppercase tracking-wide ${est.color}`}>
+                            {est.label}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {esODMA && (
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setEditando(c)}
+                              className="text-[9px] text-slate-500 hover:text-blue-400
+                                         uppercase tracking-widest transition-colors">
+                              Editar
+                            </button>
+                            <span className="text-slate-700">·</span>
+                            <button onClick={() => handleEliminar(c.id)}
+                              className="text-[9px] text-slate-500 hover:text-red-400
+                                         uppercase tracking-widest transition-colors">
+                              Eliminar
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
